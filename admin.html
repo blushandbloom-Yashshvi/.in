@@ -1,0 +1,2942 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Blush & Bloom — Admin</title>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600&family=Jost:wght@300;400;500;600&display=swap" rel="stylesheet">
+<!-- Firebase SDK -->
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+  import { getFirestore, doc, getDoc, setDoc, deleteDoc, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyDZep9MJkSEcKkU72P-VXAlHSJfXwVLo1g",
+    authDomain: "blush-bloom-ca4ff.firebaseapp.com",
+    projectId: "blush-bloom-ca4ff",
+    storageBucket: "blush-bloom-ca4ff.firebasestorage.app",
+    messagingSenderId: "441222421961",
+    appId: "1:441222421961:web:7a15b1ad1044ceec81dc18"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const db = getFirestore(app);
+
+  // Expose simple helpers on window so the rest of our plain-JS code can use them
+  window.bbFirestore = { db, doc, getDoc, setDoc, deleteDoc, collection, getDocs };
+  window.bbFirebaseReady = true;
+  document.dispatchEvent(new Event('bbFirebaseReady'));
+</script>
+<style>
+  :root{
+    --white:#ffffff; --ivory:#FAF6F3; --ivory-deep:#F3EBE4;
+    --rose:#B76E79; --rose-light:#D8A6AE; --ink:#2B2320; --ink-soft:#5B4C46;
+    --border:#E8D5C4; --gold:#C9A15A; --danger:#C0392B;
+    --shadow: 0 20px 60px rgba(139,95,90,0.12);
+
+    /* ---- Admin-specific dashboard tokens (professional layer, storefront vars untouched) ---- */
+    --adm-bg:#F6F3F0;
+    --adm-surface:#FFFFFF;
+    --adm-surface-2:#FBF8F6;
+    --adm-ink:#211A17;
+    --adm-ink-soft:#786860;
+    --adm-ink-faint:#A99C93;
+    --adm-line:#E9E0D8;
+    --adm-line-soft:#F0E9E2;
+    --adm-header-bg:#FAF6F3;
+    --adm-header-ink:#2B2320;
+    --adm-accent:#B76E79;
+    --adm-accent-ink:#ffffff;
+    --adm-gold:#C9A15A;
+    --adm-radius-lg:16px;
+    --adm-radius-md:11px;
+    --adm-radius-sm:8px;
+    --adm-shadow-card: 0 1px 2px rgba(33,26,23,0.04), 0 10px 28px rgba(33,26,23,0.06);
+    --adm-shadow-pop: 0 24px 64px rgba(20,15,13,0.22);
+    --adm-focus-ring: 0 0 0 3.5px rgba(176,80,95,0.15);
+  }
+  *{margin:0;padding:0;box-sizing:border-box;}
+  body{font-family:'Jost',sans-serif;background:var(--ivory);color:var(--ink);min-height:100vh;}
+  h1,h2,h3,.serif{font-family:'Cormorant Garamond',serif;}
+  img{max-width:100%;display:block;}
+  button{font-family:inherit;cursor:pointer;border:none;}
+
+  /* Admin dashboard runs on its own quieter, more structured surface than the storefront */
+  #adminScreen{ background:var(--adm-bg); }
+  #adminScreen, #adminScreen input, #adminScreen select, #adminScreen textarea, #adminScreen button{
+    font-family:'Jost',sans-serif; color:var(--adm-ink);
+  }
+  #adminScreen ::selection{ background:rgba(176,80,95,0.18); }
+  #adminScreen *:focus-visible{ outline:none; box-shadow:var(--adm-focus-ring); border-radius:6px; }
+
+  /* ---- Login screen ---- */
+  #loginScreen{
+    min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px;
+  }
+  .login-card{
+    background:var(--white);padding:48px 36px;border-radius:14px;box-shadow:var(--shadow);
+    width:100%;max-width:380px;text-align:center;
+  }
+  .login-card h1{font-size:28px;color:var(--rose);margin-bottom:6px;}
+  .login-card p{font-size:14px;color:var(--ink-soft);margin-bottom:24px;}
+  .login-card input{
+    width:100%;padding:13px 14px;border:1.5px solid var(--border);border-radius:8px;
+    font-size:15px;margin-bottom:14px;font-family:inherit;outline:none;
+  }
+  .login-card input:focus{border-color:var(--rose);}
+  .pw-field-wrap{position:relative;}
+  .pw-field-wrap input{padding-right:44px !important;margin-bottom:0 !important;}
+  .pw-eye-toggle{
+    position:absolute;top:50%;right:12px;transform:translateY(-50%);
+    width:24px;height:24px;display:flex;align-items:center;justify-content:center;
+    color:var(--ink-soft);cursor:pointer;background:none;border:none;padding:0;
+  }
+  .pw-eye-toggle svg{width:19px;height:19px;stroke:currentColor;fill:none;stroke-width:1.6;}
+  .pw-eye-toggle:hover{color:var(--rose);}
+  .login-card button{
+    width:100%;padding:13px;background:var(--rose);color:#fff;border-radius:8px;
+    font-size:15px;font-weight:500;letter-spacing:.3px;transition:background .2s;
+  }
+  .login-card button:hover{background:#a15964;}
+  .login-card .pw-eye-toggle,
+  .login-card .pw-eye-toggle:hover{
+    width:24px;height:24px;padding:0;background:none !important;color:var(--ink-soft);
+  }
+  #loginError{color:var(--danger);font-size:13px;margin-top:10px;display:none;}
+
+  /* ---- Admin dashboard ---- */
+  #adminScreen{display:none;}
+  .admin-header{
+    background:var(--adm-header-bg);color:var(--adm-header-ink);
+    padding:16px 24px;display:flex;align-items:center;justify-content:space-between;
+    position:sticky;top:0;z-index:10;
+    border-bottom:1px solid var(--border);
+    box-shadow:0 1px 2px rgba(139,95,90,0.05), 0 12px 30px rgba(139,95,90,0.06);
+  }
+  .admin-header-left{display:flex;align-items:center;gap:13px;}
+  .admin-header h1{font-size:20px;font-weight:500;font-family:'Cormorant Garamond',serif;letter-spacing:.2px;color:var(--ink);line-height:1.3;}
+  .admin-header .sub{font-size:11px;color:var(--ink-soft);letter-spacing:1.2px;text-transform:uppercase;margin-top:1px;}
+  .logout-btn{
+    background:var(--white);border:1.5px solid var(--border);color:var(--ink-soft);
+    padding:9px 16px;border-radius:8px;font-size:12.5px;font-weight:500;transition:.2s;letter-spacing:.2px;
+  }
+  .logout-btn:hover{border-color:var(--rose);background:var(--ivory);color:var(--rose);}
+
+  .admin-body{max-width:1100px;margin:0 auto;padding:28px 20px 80px;}
+
+  /* ---- Trending Offer Banner section ---- */
+  .offer-section{
+    background:var(--adm-surface);border:1px solid var(--adm-line);border-radius:var(--adm-radius-lg);
+    padding:22px;margin-bottom:28px;box-shadow:var(--adm-shadow-card);
+  }
+  .offer-section-header{
+    display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;
+  }
+  .offer-section-header h2{font-size:18px;font-weight:500;font-family:'Jost',sans-serif;color:var(--adm-ink);letter-spacing:.1px;}
+  .toggle-wrap{display:flex;align-items:center;gap:10px;cursor:pointer;}
+  .toggle-wrap input{display:none;}
+  .toggle-slider{
+    width:42px;height:23px;background:var(--adm-line);border-radius:30px;position:relative;transition:.25s;
+  }
+  .toggle-slider::before{
+    content:'';position:absolute;top:2px;left:2px;width:19px;height:19px;
+    background:#fff;border-radius:50%;transition:.25s;box-shadow:0 1px 3px rgba(0,0,0,0.2);
+  }
+  .toggle-wrap input:checked + .toggle-slider{background:#2E7D4F;}
+  .toggle-wrap input:checked + .toggle-slider::before{transform:translateX(19px);}
+  .toggle-label{font-size:12.5px;color:var(--adm-ink-soft);font-weight:600;min-width:28px;letter-spacing:.2px;}
+  #offerFormWrap.disabled{opacity:0.45;pointer-events:none;}
+
+  .toolbar{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:20px;flex-wrap:wrap;}
+  .toolbar .count{font-size:12.5px;color:var(--adm-ink-soft);font-weight:500;letter-spacing:.2px;}
+  .add-btn{
+    background:#FBEAE8;color:var(--rose);padding:10px 18px;border-radius:var(--adm-radius-sm);
+    font-size:13px;font-weight:500;display:flex;align-items:center;gap:6px;transition:.18s;letter-spacing:.1px;
+    border:1px solid #F5D6D3;
+  }
+  .add-btn:hover{background:var(--rose);color:#fff;transform:translateY(-1px);box-shadow:0 6px 16px rgba(183,110,121,0.25);}
+  .add-btn:active{transform:translateY(0);}
+
+  .product-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:16px;}
+  .p-card{
+    background:var(--adm-surface);border-radius:var(--adm-radius-md);overflow:hidden;
+    box-shadow:var(--adm-shadow-card);
+    border:1px solid var(--adm-line);transition:box-shadow .2s, transform .2s;
+  }
+  .p-card:hover{box-shadow:0 4px 8px rgba(33,26,23,0.05), 0 16px 36px rgba(33,26,23,0.1);transform:translateY(-2px);}
+  .p-card img{width:100%;height:160px;object-fit:cover;background:var(--adm-surface-2);}
+  .p-card-body{padding:15px;}
+  .p-cat{font-size:10.5px;text-transform:uppercase;letter-spacing:.8px;color:var(--adm-gold);margin-bottom:5px;font-weight:600;}
+  .code-chip-row{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:9px;}
+  .code-chip{
+    display:inline-flex; align-items:center; gap:5px; font-family:'SF Mono','Courier New',monospace; font-size:10.5px; font-weight:600;
+    background:var(--adm-surface-2); color:var(--adm-ink-soft); border:1px solid var(--adm-line); border-radius:6px;
+    padding:4px 8px; cursor:pointer; user-select:none; transition:.15s;
+  }
+  .code-chip:hover{background:#FBEAE8; color:var(--rose); border-color:#F5D6D3;}
+  .code-chip:active{transform:scale(0.96);}
+  .p-name{font-size:16.5px;font-weight:500;margin-bottom:6px;line-height:1.25;color:var(--adm-ink);font-family:'Jost',sans-serif;}
+  .p-price{font-size:14px;color:var(--adm-ink-soft);margin-bottom:13px;font-weight:500;}
+  .p-price .old{text-decoration:line-through;opacity:.5;margin-left:6px;font-weight:400;}
+  .p-actions{display:flex;gap:8px;}
+  .p-actions button{
+    flex:1;padding:9px;border-radius:7px;font-size:12px;font-weight:500;transition:.18s;letter-spacing:.1px;
+  }
+  .edit-btn{background:var(--adm-surface-2);color:var(--adm-ink);border:1px solid var(--adm-line);}
+  .edit-btn:hover{background:#FBEAE8;color:var(--rose);border-color:#F5D6D3;}
+  .del-btn{background:#FBEAE8;color:var(--danger);border:1px solid #F5D6D3;}
+  .del-btn:hover{background:var(--danger);color:#fff;border-color:var(--danger);}
+
+  .empty-state{text-align:center;padding:60px 20px;color:var(--adm-ink-faint);}
+
+  /* ---- Modal form ---- */
+  .overlay{
+    display:none;position:fixed;inset:0;background:rgba(20,15,13,0.6);z-index:100;
+    align-items:flex-start;justify-content:center;padding:30px 16px;overflow-y:auto;
+    backdrop-filter:blur(2px);
+  }
+  .overlay.show{display:flex;}
+  .modal{
+    background:var(--adm-surface);border-radius:var(--adm-radius-lg);width:100%;max-width:560px;padding:28px;
+    box-shadow:var(--adm-shadow-pop);border:1px solid var(--adm-line);
+  }
+  .modal h2{font-size:21px;font-weight:500;font-family:'Jost',sans-serif;color:var(--adm-ink);margin-bottom:20px;letter-spacing:.1px;}
+  .form-row{margin-bottom:14px;}
+  .form-row label{display:block;font-size:11.5px;font-weight:600;color:var(--adm-ink-soft);margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px;}
+  .form-row input, .form-row select, .form-row textarea{
+    width:100%;padding:10.5px 12px;border:1.5px solid var(--adm-line);border-radius:var(--adm-radius-sm);
+    font-family:inherit;font-size:14px;outline:none;color:var(--adm-ink);background:var(--adm-surface);transition:.15s;
+  }
+  .form-row input:focus, .form-row select:focus, .form-row textarea:focus{border-color:var(--adm-accent);box-shadow:var(--adm-focus-ring);}
+  .form-row input::placeholder, .form-row textarea::placeholder{color:var(--adm-ink-faint);}
+  .form-row textarea{resize:vertical;min-height:70px;}
+  .form-grid-2{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+  .specs-row{display:grid;grid-template-columns:1fr 1fr auto;gap:8px;margin-bottom:8px;align-items:center;}
+  .specs-row .rm-spec{background:#FBEAE8;color:var(--danger);width:34px;height:34px;border-radius:var(--adm-radius-sm);font-size:14px;transition:.15s;}
+  .specs-row .rm-spec:hover{background:var(--danger);color:#fff;}
+  .add-spec-btn{
+    background:var(--adm-surface-2);color:var(--adm-ink);padding:9px 14px;border-radius:var(--adm-radius-sm);
+    font-size:12.5px;font-weight:500;margin-bottom:16px;border:1px solid var(--adm-line);transition:.15s;
+  }
+  .add-spec-btn:hover{background:#FBEAE8;color:var(--rose);border-color:#F5D6D3;}
+  .modal-actions{display:flex;gap:10px;margin-top:20px;}
+  .modal-actions button{flex:1;padding:12px;border-radius:var(--adm-radius-sm);font-size:13.5px;font-weight:500;letter-spacing:.1px;transition:.15s;}
+  .save-btn{background:#FBEAE8;color:var(--rose);border:1px solid #F5D6D3;}
+  .save-btn:hover{background:var(--rose);color:#fff;}
+  .cancel-btn{background:var(--adm-surface-2);color:var(--adm-ink);border:1px solid var(--adm-line);}
+  .cancel-btn:hover{background:var(--adm-line-soft);}
+
+  .toast{
+    position:fixed;bottom:26px;left:50%;transform:translateX(-50%) translateY(100px);
+    background:var(--ink);color:#fff;padding:12px 22px;border-radius:30px;font-size:13.5px;
+    box-shadow:0 14px 36px rgba(43,35,32,0.28);transition:transform .3s ease;z-index:200;
+  }
+  .toast.show{transform:translateX(-50%) translateY(0);}
+
+  .note-banner{
+    background:var(--adm-surface-2);border:1px solid var(--adm-line);color:var(--adm-ink-soft);font-size:13px;
+    padding:13px 16px;border-radius:var(--adm-radius-sm);margin-bottom:22px;line-height:1.5;
+    display:flex;align-items:flex-start;gap:10px;
+  }
+  .note-banner svg{width:16px;height:16px;stroke:var(--adm-gold);flex-shrink:0;margin-top:2px;}
+
+  /* ---- Top-level admin tabs ---- */
+  .admin-tabs{
+    display:flex;gap:4px;margin-bottom:26px;flex-wrap:wrap;
+    background:var(--adm-surface);border:1px solid var(--adm-line);border-radius:var(--adm-radius-md);
+    padding:5px;box-shadow:var(--adm-shadow-card);
+  }
+  .admin-tab{
+    display:flex;align-items:center;gap:7px;
+    padding:10px 16px;border-radius:8px;font-size:13px;font-weight:500;color:var(--adm-ink-soft);
+    transition:.18s;white-space:nowrap;background:transparent;letter-spacing:.1px;
+  }
+  .admin-tab svg{width:15px;height:15px;stroke:currentColor;flex-shrink:0;opacity:.75;}
+  .admin-tab:hover{background:var(--adm-surface-2);color:var(--adm-ink);}
+  .admin-tab.active{background:#FBEAE8;color:var(--rose);}
+  .admin-tab.active svg{opacity:1;stroke:var(--rose);}
+  .admin-panel{display:none;}
+  .admin-panel.active{display:block;}
+
+  /* ---- Content sub-sections (accordion cards) ---- */
+  .content-section{
+    background:var(--adm-surface);border:1px solid var(--adm-line);border-radius:var(--adm-radius-lg);
+    margin-bottom:16px;overflow:hidden;box-shadow:var(--adm-shadow-card);
+  }
+  .content-section-head{
+    display:flex;align-items:center;justify-content:space-between;
+    padding:17px 20px;cursor:pointer;user-select:none;transition:background .15s;
+  }
+  .content-section-head:hover{background:var(--adm-surface-2);}
+  .content-section-head h3{font-size:16.5px;font-weight:500;font-family:'Jost',sans-serif;color:var(--adm-ink);letter-spacing:.1px;}
+  .content-section-head .chev{width:11px;height:11px;stroke:var(--adm-ink-faint);stroke-width:2;transition:transform .3s;}
+  .content-section.open .content-section-head .chev{transform:rotate(180deg);}
+  .content-section-body{
+    max-height:0;overflow:hidden;transition:max-height .35s ease;
+    padding:0 20px;border-top:0 solid var(--adm-line);
+  }
+  .content-section.open .content-section-body{max-height:4000px;padding:4px 20px 22px;border-top:1px solid var(--adm-line);}
+
+  .hero-slide-card{
+    border:1px solid var(--adm-line);border-radius:var(--adm-radius-md);padding:16px;margin-bottom:14px;position:relative;background:var(--adm-surface-2);
+  }
+  .hero-slide-card .slide-num{
+    font-size:11px;font-weight:600;color:var(--adm-gold);text-transform:uppercase;letter-spacing:.6px;margin-bottom:10px;
+    display:flex;align-items:center;justify-content:space-between;
+  }
+  .mini-preview{width:100%;max-height:120px;object-fit:cover;border-radius:8px;margin-top:8px;border:1px solid var(--adm-line);display:none;}
+  .usp-card{border:1px solid var(--adm-line);border-radius:var(--adm-radius-md);padding:14px;margin-bottom:12px;background:var(--adm-surface-2);}
+  .review-card{border:1px solid var(--adm-line);border-radius:var(--adm-radius-md);padding:14px;margin-bottom:12px;position:relative;background:var(--adm-surface-2);}
+  .section-save-row{display:flex;justify-content:flex-end;margin-top:10px;}
+  .section-save-row button{
+    background:#FBEAE8;color:var(--rose);padding:11px 24px;border-radius:var(--adm-radius-sm);font-size:13px;font-weight:500;transition:.18s;letter-spacing:.1px;border:1px solid #F5D6D3;
+  }
+  .section-save-row button:hover{background:var(--rose);color:#fff;}
+  .small-btn{
+    background:var(--adm-surface);color:var(--adm-ink);padding:7px 13px;border-radius:7px;font-size:12px;border:1px solid var(--adm-line);transition:.15s;font-weight:500;
+  }
+  .small-btn:hover{background:var(--adm-line-soft);}
+  .danger-small-btn{background:#FBEAE8;color:var(--danger);padding:7px 13px;border-radius:7px;font-size:12px;border:1px solid #F5D6D3;transition:.15s;font-weight:500;}
+  .danger-small-btn:hover{background:var(--danger);color:#fff;border-color:var(--danger);}
+
+  /* ---- Customers tab ---- */
+  .cust-search{
+    width:100%;max-width:340px;padding:10.5px 14px;border:1.5px solid var(--adm-line);
+    border-radius:var(--adm-radius-sm);font-family:inherit;font-size:14px;outline:none;margin-bottom:18px;transition:.15s;
+    background:var(--adm-surface);color:var(--adm-ink);
+  }
+  .cust-search:focus{border-color:var(--adm-accent);box-shadow:var(--adm-focus-ring);}
+  .cust-list{display:flex;flex-direction:column;gap:12px;}
+  .cust-card{
+    background:var(--adm-surface);border:1px solid var(--adm-line);border-radius:var(--adm-radius-md);
+    padding:18px 20px;box-shadow:var(--adm-shadow-card);
+  }
+  .cust-card-top{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px;flex-wrap:wrap;}
+  .cust-name{font-size:17px;font-weight:500;color:var(--adm-ink);font-family:'Jost',sans-serif;}
+  .cust-name.empty{color:var(--adm-ink-faint);font-style:italic;font-weight:400;}
+  .cust-email{font-size:12.5px;color:var(--adm-accent);word-break:break-all;}
+  .cust-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:8px 18px;font-size:13px;color:var(--adm-ink-soft);}
+  .cust-grid b{color:var(--adm-ink);font-weight:500;}
+  .cust-meta{font-size:11px;color:var(--adm-ink-faint);margin-top:10px;}
+  .cust-mini-section{margin-top:12px;padding-top:12px;border-top:1px solid var(--adm-border,#eee);font-size:13px;}
+  .cust-chip-wrap{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px;}
+  .cust-chip{background:var(--adm-bg-soft,#f6f2ef);border:1px solid var(--adm-border,#eee);border-radius:20px;padding:4px 12px;font-size:12px;color:var(--adm-ink-soft);}
+
+  /* ---- Orders tab ---- */
+  .ord-amount{font-size:18px;font-weight:600;color:var(--adm-ink);}
+  .ord-badge{
+    font-size:10.5px;letter-spacing:.6px;text-transform:uppercase;padding:5px 11px;
+    border-radius:20px;font-weight:600;
+  }
+  .ord-badge.pending_verification{background:#FCF1D8;color:#8A6A17;}
+  .ord-badge.paid{background:#DEF2E5;color:#1D6E3E;}
+  .ord-badge.rejected{background:#FAE0DF;color:#A8281F;}
+  .ord-badge.shipped{background:#DCE9F7;color:#1E528F;}
+  .ord-badge.delivered{background:#E7E2F7;color:#4A3390;}
+  .ord-eta-row{display:flex;align-items:center;gap:8px;margin-top:10px;flex-wrap:wrap;}
+  .dlv-box{border:1.5px dashed var(--adm-line);border-radius:var(--adm-radius-sm);padding:12px 14px;margin-top:12px;background:var(--adm-surface-2);}
+  .dlv-box-label{font-size:12px;font-weight:600;color:var(--adm-ink);margin-bottom:8px;letter-spacing:.2px;}
+  .dlv-set-row{display:flex;gap:8px;flex-wrap:wrap;}
+  .dlv-set-row input[type=number]{
+    flex:1;min-width:110px;padding:9px 12px;border:1.5px solid var(--adm-line);border-radius:var(--adm-radius-sm);
+    font-family:inherit;font-size:13px;background:var(--adm-surface);
+  }
+  .dlv-set-row input[type=number]:focus{border-color:var(--adm-accent);box-shadow:var(--adm-focus-ring);}
+  .dlv-status-row{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;}
+  .dlv-amount-txt{font-size:13.5px;font-weight:600;color:var(--adm-ink);}
+  .dlv-badge{display:inline-block;font-size:11px;font-weight:600;padding:4px 10px;border-radius:20px;letter-spacing:.2px;}
+  .dlv-badge.dlv-pending{background:#FCF1D8;color:#8A6A17;}
+  .dlv-badge.dlv-awaiting{background:#FBEAE8;color:#A8281F;}
+  .dlv-badge.dlv-paid{background:#DEF2E5;color:#1D6E3E;}
+  .ord-eta-row input[type=date]{
+    font-size:12px;padding:7px 10px;border:1.5px solid var(--adm-line);border-radius:20px;font-family:inherit;background:var(--adm-surface);
+  }
+  .ord-actions button.danger{background:#FBEAE8;color:var(--rose);border-color:#F5D6D3;}
+  .ord-actions button.danger:hover{background:var(--rose);border-color:var(--rose);color:#fff;}
+  .add-spec-btn.danger{background:#FBEAE8;color:var(--rose);border-color:#F5D6D3;}
+  .add-spec-btn.danger:hover{background:var(--rose);border-color:var(--rose);color:#fff;}
+  .ord-item-row{display:flex;justify-content:space-between;gap:10px;padding:6px 0;border-bottom:1px dashed var(--adm-line);font-size:13px;color:var(--adm-ink);}
+  .ord-item-row:last-child{border-bottom:none;}
+  .ord-section-label{font-size:10.5px;letter-spacing:1px;text-transform:uppercase;color:var(--adm-ink-faint);margin:14px 0 6px;font-weight:600;}
+  .ord-items{font-size:13px;color:var(--adm-ink-soft);margin:8px 0;line-height:1.7;}
+  .ord-actions{display:flex;gap:10px;margin-top:10px;flex-wrap:wrap;}
+  .ord-actions button{
+    font-size:12px;padding:8px 16px;border-radius:20px;border:1.5px solid #F5D6D3;
+    background:#FBEAE8;color:var(--rose);transition:.18s;font-weight:500;
+  }
+  .ord-actions button:hover{background:var(--rose);border-color:var(--rose);color:#fff;}
+  .ord-actions button.primary{background:#FBEAE8;color:var(--rose);border-color:#F5D6D3;}
+  .ord-actions button.primary:hover{background:var(--rose);border-color:var(--rose);color:#fff;}
+</style>
+</head>
+<body>
+
+<!-- LOGIN SCREEN -->
+<div id="loginScreen">
+  <div class="login-card">
+    <h1 class="serif">Blush &amp; Bloom</h1>
+    <p>Admin Panel — authorised access only</p>
+    <div class="pw-field-wrap" style="margin-bottom:14px;">
+      <input type="password" id="pwInput" placeholder="Enter admin password" onkeydown="if(event.key==='Enter')tryLogin()">
+      <button type="button" class="pw-eye-toggle" onclick="togglePwVisibility('pwInput', this)" aria-label="Show password">
+        <svg viewBox="0 0 24 24"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg>
+      </button>
+    </div>
+    <button onclick="tryLogin()">Login</button>
+    <div id="loginError">Incorrect password. Try again.</div>
+  </div>
+</div>
+
+<!-- ADMIN DASHBOARD -->
+<div id="adminScreen">
+  <div class="admin-header">
+    <div class="admin-header-left">
+      <div>
+        <h1>Blush &amp; Bloom</h1>
+        <div class="sub">Admin Dashboard</div>
+      </div>
+    </div>
+    <button class="logout-btn" onclick="logout()">Log out</button>
+  </div>
+
+  <div class="admin-body">
+    <div class="note-banner">
+      <svg fill="none" viewBox="0 0 24 24" stroke-width="1.6"><circle cx="12" cy="12" r="9"/><path d="M12 8v5" stroke-linecap="round"/><circle cx="12" cy="16.2" r="0.6" fill="currentColor" stroke="none"/></svg>
+      Changes save automatically to the cloud and appear instantly on the live website, on any device.
+    </div>
+
+    <div class="admin-tabs">
+      <button class="admin-tab active" data-tab="products" onclick="switchAdminTab('products')"><svg fill="none" viewBox="0 0 24 24" stroke-width="1.6"><path d="M6 6h15l-1.5 9h-12z"/><path d="M6 6 5 3H2"/><circle cx="9.5" cy="20" r="1"/><circle cx="17.5" cy="20" r="1"/></svg>Products &amp; Offer</button>
+      <button class="admin-tab" data-tab="content" onclick="switchAdminTab('content')"><svg fill="none" viewBox="0 0 24 24" stroke-width="1.6"><path d="M4 20h4l11-11-4-4L4 16z"/><path d="M13.5 6.5 17 10"/></svg>Site Content</button>
+      <button class="admin-tab" data-tab="customers" onclick="switchAdminTab('customers')"><svg fill="none" viewBox="0 0 24 24" stroke-width="1.6"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>Customers</button>
+      <button class="admin-tab" data-tab="orders" onclick="switchAdminTab('orders')"><svg fill="none" viewBox="0 0 24 24" stroke-width="1.6"><rect x="2" y="6" width="20" height="14" rx="2"/><path d="M2 10h20"/><path d="M6 15h4"/></svg>Orders</button>
+    </div>
+
+    <!-- ============ TAB: PRODUCTS & OFFER ============ -->
+    <div class="admin-panel active" id="panel-products">
+
+    <!-- TRENDING OFFER BANNER SECTION -->
+    <div class="offer-section">
+      <div class="offer-section-header">
+        <h2 class="serif">Trending Offer Banner</h2>
+        <span class="code-chip" onclick="copyCode('OFFER', this)" title="Tap to copy code">OFFER 📋</span>
+        <label class="toggle-wrap">
+          <input type="checkbox" id="offer_active" onchange="onOfferToggle()">
+          <span class="toggle-slider"></span>
+          <span class="toggle-label" id="offerToggleLabel">Off</span>
+        </label>
+      </div>
+
+      <div id="offerFormWrap">
+        <div class="form-row">
+          <label>Banner Image</label>
+          <div style="display:flex; gap:8px; margin-bottom:8px;">
+            <button type="button" class="add-spec-btn" style="flex:1; margin-bottom:0; text-align:center;" onclick="document.getElementById('offer_imgFile').click()"><svg fill="none" viewBox="0 0 24 24" stroke-width="1.6" style="width:15px;height:15px;stroke:currentColor;margin-right:6px;vertical-align:-3px;"><path d="M4 8h3l1.5-2h7L17 8h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/><circle cx="12" cy="13" r="3.3"/></svg>Choose from Gallery</button>
+          </div>
+          <input type="file" id="offer_imgFile" accept="image/*" style="display:none;" onchange="handleOfferImageUpload(event)">
+          <input type="text" id="offer_img" placeholder="Or paste an image URL: https://...">
+          <div id="offerImgPreviewWrap" style="margin-top:10px; display:none;">
+            <img id="offerImgPreview" style="width:100%; max-height:200px; object-fit:cover; border-radius:8px; border:1.5px solid var(--border);">
+          </div>
+        </div>
+
+        <div class="form-grid-2">
+          <div class="form-row">
+            <label>Badge Text</label>
+            <input type="text" id="offer_badge" placeholder="e.g. Trending Offer, Sale">
+          </div>
+          <div class="form-row">
+            <label>Button Text (optional)</label>
+            <input type="text" id="offer_btnText" placeholder="e.g. Shop Now">
+          </div>
+        </div>
+
+        <div class="form-row">
+          <label>Title</label>
+          <input type="text" id="offer_title" placeholder="e.g. Flat 30% Off — This Week Only">
+        </div>
+
+        <div class="form-row">
+          <label>Description</label>
+          <textarea id="offer_desc" placeholder="Short description of the offer"></textarea>
+        </div>
+
+        <div class="form-row">
+          <label>Button Link (optional)</label>
+          <input type="text" id="offer_link" placeholder="#shop (default) or a category link">
+        </div>
+
+        <div class="form-row">
+          <label>Notes / Tags (shown below the button — add as many as you like)</label>
+          <div id="offerTagsEditor"></div>
+          <button type="button" class="add-spec-btn" onclick="addOfferTagRow()">+ Add Tag</button>
+        </div>
+
+        <div class="modal-actions" style="margin-top:10px;">
+          <button type="button" class="save-btn" style="flex:none; padding:12px 28px;" onclick="saveOffer()">Save Offer Banner</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="toolbar">
+      <div class="count" id="itemCount">0 items</div>
+      <button class="add-btn" onclick="openForm()">+ Add New Item</button>
+    </div>
+
+    <div class="product-grid" id="productGrid"></div>
+    </div>
+    <!-- ============ END TAB: PRODUCTS & OFFER ============ -->
+
+    <!-- ============ TAB: SITE CONTENT ============ -->
+    <div class="admin-panel" id="panel-content">
+
+      <!-- LOGO & SOCIAL -->
+      <div class="content-section" id="sec-logo">
+        <div class="content-section-head" onclick="toggleSection('sec-logo')">
+          <h3 class="serif">Logo &amp; Social Links</h3>
+          <svg class="chev" viewBox="0 0 24 24" fill="none"><path d="m6 9 6 6 6-6"/></svg>
+        </div>
+        <div class="content-section-body">
+          <div class="form-row">
+            <label>Logo Text (use & to split into two colors, e.g. Blush&amp;Bloom)</label>
+            <input type="text" id="sc_logoText" placeholder="Blush&amp;Bloom">
+          </div>
+          <div class="form-row">
+            <label>Instagram URL</label>
+            <input type="text" id="sc_instagramUrl" placeholder="https://www.instagram.com/yourhandle">
+          </div>
+          <div class="section-save-row"><button onclick="saveLogoSocial()">Save</button></div>
+        </div>
+      </div>
+
+      <!-- CATEGORIES (new categories are created via the product form; photo + codes are managed here) -->
+      <div class="content-section" id="sec-categories">
+        <div class="content-section-head" onclick="toggleSection('sec-categories')">
+          <h3 class="serif">Categories</h3>
+          <svg class="chev" viewBox="0 0 24 24" fill="none"><path d="m6 9 6 6 6-6"/></svg>
+        </div>
+        <div class="content-section-body">
+          <p style="font-size:13px;color:#8A6E63;margin-bottom:14px;">Change each category's tile photo below, or copy its code to paste into any "Link / Code" field elsewhere in the admin panel.</p>
+          <div id="categoryCodesList"></div>
+        </div>
+      </div>
+
+      <!-- HERO SLIDES -->
+      <div class="content-section" id="sec-hero">
+        <div class="content-section-head" onclick="toggleSection('sec-hero')">
+          <h3 class="serif">Hero Slider</h3>
+          <span class="code-chip" onclick="event.stopPropagation(); copyCode('SEC-hero', this)" title="Tap to copy code">SEC-hero 📋</span>
+          <svg class="chev" viewBox="0 0 24 24" fill="none"><path d="m6 9 6 6 6-6"/></svg>
+        </div>
+        <div class="content-section-body">
+          <div id="heroSlidesEditor"></div>
+          <button type="button" class="add-spec-btn" onclick="addHeroSlideRow()">+ Add Slide</button>
+          <div class="section-save-row"><button onclick="saveHeroSlides()">Save Hero Slider</button></div>
+        </div>
+      </div>
+
+      <!-- OUR STORY -->
+      <div class="content-section" id="sec-story">
+        <div class="content-section-head" onclick="toggleSection('sec-story')">
+          <h3 class="serif">Our Story Section</h3>
+          <span class="code-chip" onclick="event.stopPropagation(); copyCode('SEC-story', this)" title="Tap to copy code">SEC-story 📋</span>
+          <svg class="chev" viewBox="0 0 24 24" fill="none"><path d="m6 9 6 6 6-6"/></svg>
+        </div>
+        <div class="content-section-body">
+          <div class="form-row">
+            <label>Eyebrow Label</label>
+            <input type="text" id="sc_storyEyebrow" placeholder="Our Story">
+          </div>
+          <div class="form-row">
+            <label>Title (HTML allowed, e.g. use &lt;br&gt; and &lt;em&gt;)</label>
+            <input type="text" id="sc_storyTitle" placeholder="Made to be worn,&lt;br&gt;not just &lt;em&gt;admired&lt;/em&gt;">
+          </div>
+          <div class="form-row">
+            <label>Paragraph 1</label>
+            <textarea id="sc_storyPara1"></textarea>
+          </div>
+          <div class="form-row">
+            <label>Paragraph 2</label>
+            <textarea id="sc_storyPara2"></textarea>
+          </div>
+          <div class="form-grid-2">
+            <div class="form-row"><label>Stat 1 Number</label><input type="text" id="sc_stat1Num" placeholder="500+"></div>
+            <div class="form-row"><label>Stat 1 Label</label><input type="text" id="sc_stat1Label" placeholder="Happy Customers"></div>
+          </div>
+          <div class="form-grid-2">
+            <div class="form-row"><label>Stat 2 Number</label><input type="text" id="sc_stat2Num" placeholder="150+"></div>
+            <div class="form-row"><label>Stat 2 Label</label><input type="text" id="sc_stat2Label" placeholder="Unique Designs"></div>
+          </div>
+          <div class="form-grid-2">
+            <div class="form-row"><label>Stat 3 Number</label><input type="text" id="sc_stat3Num" placeholder="4.9★"></div>
+            <div class="form-row"><label>Stat 3 Label</label><input type="text" id="sc_stat3Label" placeholder="Average Rating"></div>
+          </div>
+          <div class="section-save-row"><button onclick="saveStory()">Save Our Story</button></div>
+        </div>
+      </div>
+
+      <!-- USP STRIP -->
+      <div class="content-section" id="sec-usp">
+        <div class="content-section-head" onclick="toggleSection('sec-usp')">
+          <h3 class="serif">USP Strip</h3>
+          <span class="code-chip" onclick="event.stopPropagation(); copyCode('SEC-usp', this)" title="Tap to copy code">SEC-usp 📋</span>
+          <svg class="chev" viewBox="0 0 24 24" fill="none"><path d="m6 9 6 6 6-6"/></svg>
+        </div>
+        <div class="content-section-body">
+          <div id="uspEditor"></div>
+          <div class="section-save-row"><button onclick="saveUsp()">Save USP Strip</button></div>
+        </div>
+      </div>
+
+      <!-- MARQUEE STRIP -->
+      <div class="content-section" id="sec-marquee">
+        <div class="content-section-head" onclick="toggleSection('sec-marquee')">
+          <h3 class="serif">Marquee Strip</h3>
+          <span class="code-chip" onclick="event.stopPropagation(); copyCode('SEC-marquee', this)" title="Tap to copy code">SEC-marquee 📋</span>
+          <svg class="chev" viewBox="0 0 24 24" fill="none"><path d="m6 9 6 6 6-6"/></svg>
+        </div>
+        <div class="content-section-body">
+          <div id="marqueeEditor"></div>
+          <div class="section-save-row"><button onclick="saveMarquee()">Save Marquee Strip</button></div>
+        </div>
+      </div>
+
+      <!-- TESTIMONIALS -->
+      <div class="content-section" id="sec-reviews">
+        <div class="content-section-head" onclick="toggleSection('sec-reviews')">
+          <h3 class="serif">Testimonials</h3>
+          <span class="code-chip" onclick="event.stopPropagation(); copyCode('SEC-reviews', this)" title="Tap to copy code">SEC-reviews 📋</span>
+          <svg class="chev" viewBox="0 0 24 24" fill="none"><path d="m6 9 6 6 6-6"/></svg>
+        </div>
+        <div class="content-section-body">
+          <div class="form-row">
+            <label>Eyebrow Label</label>
+            <input type="text" id="sc_reviewsEyebrow" placeholder="Kind Words">
+          </div>
+          <div class="form-row">
+            <label>Title (HTML allowed)</label>
+            <input type="text" id="sc_reviewsTitle" placeholder="Loved by &lt;em&gt;our customers&lt;/em&gt;">
+          </div>
+          <div id="reviewsEditor"></div>
+          <button type="button" class="add-spec-btn" onclick="addReviewRow()">+ Add Testimonial</button>
+          <div class="section-save-row"><button onclick="saveReviews()">Save Testimonials</button></div>
+        </div>
+      </div>
+
+      <!-- CUSTOMER SUBMITTED REVIEWS -->
+      <div class="content-section" id="sec-customer-reviews">
+        <div class="content-section-head" onclick="toggleSection('sec-customer-reviews')">
+          <h3 class="serif">Customer Reviews</h3>
+          <span class="code-chip" onclick="event.stopPropagation(); copyCode('SEC-customer-reviews', this)" title="Tap to copy code">SEC-customer-reviews 📋</span>
+          <svg class="chev" viewBox="0 0 24 24" fill="none"><path d="m6 9 6 6 6-6"/></svg>
+        </div>
+        <div class="content-section-body">
+          <p style="font-size:13px;color:var(--muted,#888);margin-bottom:12px;">Reviews submitted by logged-in customers on the site (with star ratings). These are separate from the manual Testimonials above.</p>
+          <div class="section-save-row" style="margin-bottom:12px;">
+            <button type="button" onclick="loadCustomerSubmittedReviews()">Refresh</button>
+          </div>
+          <div id="customerReviewsList">Loading...</div>
+        </div>
+      </div>
+
+      <!-- FAQ -->
+      <div class="content-section" id="sec-faq">
+        <div class="content-section-head" onclick="toggleSection('sec-faq')">
+          <h3 class="serif">FAQs</h3>
+          <span class="code-chip" onclick="event.stopPropagation(); copyCode('SEC-faq', this)" title="Tap to copy code">SEC-faq 📋</span>
+          <svg class="chev" viewBox="0 0 24 24" fill="none"><path d="m6 9 6 6 6-6"/></svg>
+        </div>
+        <div class="content-section-body">
+          <p style="font-size:13px;color:var(--muted,#888);margin-bottom:12px;">This is the FAQ popup customers see from the "FAQs" link in the footer. Add, edit, remove or reorder questions here.</p>
+          <div class="form-row">
+            <label>Intro line (shown at the top of the popup)</label>
+            <input type="text" id="sc_faqIntro" placeholder="Everything you need to know before, during and after your order.">
+          </div>
+          <div id="faqEditor"></div>
+          <button type="button" class="add-spec-btn" onclick="addFaqRow()">+ Add Question</button>
+          <div class="section-save-row"><button onclick="saveFaq()">Save FAQs</button></div>
+        </div>
+      </div>
+
+      <!-- SHIPPING POLICY -->
+      <div class="content-section" id="sec-shipping-policy">
+        <div class="content-section-head" onclick="toggleSection('sec-shipping-policy')">
+          <h3 class="serif">Shipping Policy</h3>
+          <span class="code-chip" onclick="event.stopPropagation(); copyCode('SEC-shipping-policy', this)" title="Tap to copy code">SEC-shipping-policy 📋</span>
+          <svg class="chev" viewBox="0 0 24 24" fill="none"><path d="m6 9 6 6 6-6"/></svg>
+        </div>
+        <div class="content-section-body">
+          <p style="font-size:13px;color:var(--muted,#888);margin-bottom:12px;">Shown in the popup when a customer taps "Shipping Policy" in the footer. You can use basic HTML: &lt;h4&gt;heading&lt;/h4&gt;, &lt;p&gt;paragraph&lt;/p&gt;, &lt;ul&gt;&lt;li&gt;bullet&lt;/li&gt;&lt;/ul&gt;, &lt;strong&gt;bold&lt;/strong&gt;.</p>
+          <div class="form-row">
+            <label>Popup Title</label>
+            <input type="text" id="sc_shippingTitle" placeholder="Shipping Policy">
+          </div>
+          <div class="form-row">
+            <label>Content (HTML)</label>
+            <textarea id="sc_shippingBody" style="min-height:220px;font-family:monospace;font-size:12.5px;"></textarea>
+          </div>
+          <div class="section-save-row"><button onclick="saveShippingPolicy()">Save Shipping Policy</button></div>
+        </div>
+      </div>
+
+      <!-- REPLACEMENT POLICY -->
+      <div class="content-section" id="sec-replacement-policy">
+        <div class="content-section-head" onclick="toggleSection('sec-replacement-policy')">
+          <h3 class="serif">Replacement Policy</h3>
+          <span class="code-chip" onclick="event.stopPropagation(); copyCode('SEC-replacement-policy', this)" title="Tap to copy code">SEC-replacement-policy 📋</span>
+          <svg class="chev" viewBox="0 0 24 24" fill="none"><path d="m6 9 6 6 6-6"/></svg>
+        </div>
+        <div class="content-section-body">
+          <p style="font-size:13px;color:var(--muted,#888);margin-bottom:12px;">Shown in the popup when a customer taps "Replacement Policy" in the footer. You can use basic HTML: &lt;h4&gt;heading&lt;/h4&gt;, &lt;p&gt;paragraph&lt;/p&gt;, &lt;ol&gt;&lt;li&gt;step&lt;/li&gt;&lt;/ol&gt;, &lt;strong&gt;bold&lt;/strong&gt;.</p>
+          <div class="form-row">
+            <label>Popup Title</label>
+            <input type="text" id="sc_replacementTitle" placeholder="Replacement Policy">
+          </div>
+          <div class="form-row">
+            <label>Content (HTML)</label>
+            <textarea id="sc_replacementBody" style="min-height:220px;font-family:monospace;font-size:12.5px;"></textarea>
+          </div>
+          <div class="section-save-row"><button onclick="saveReplacementPolicy()">Save Replacement Policy</button></div>
+        </div>
+      </div>
+
+      <!-- CUSTOM / EXTRA POLICIES -->
+      <div class="content-section" id="sec-extra-policies">
+        <div class="content-section-head" onclick="toggleSection('sec-extra-policies')">
+          <h3 class="serif">Other Policies</h3>
+          <span class="code-chip" onclick="event.stopPropagation(); copyCode('SEC-extra-policies', this)" title="Tap to copy code">SEC-extra-policies 📋</span>
+          <svg class="chev" viewBox="0 0 24 24" fill="none"><path d="m6 9 6 6 6-6"/></svg>
+        </div>
+        <div class="content-section-body">
+          <p style="font-size:13px;color:var(--muted,#888);margin-bottom:12px;">Add any extra policy (Privacy Policy, Terms of Service, Return Policy, etc). Each one automatically gets its own link in the footer and its own popup — no extra setup needed.</p>
+          <div id="extraPoliciesEditor"></div>
+          <button type="button" class="add-spec-btn" onclick="addExtraPolicy()">+ Add New Policy</button>
+        </div>
+      </div>
+
+      <!-- INSTAGRAM CTA -->
+      <div class="content-section" id="sec-insta">
+        <div class="content-section-head" onclick="toggleSection('sec-insta')">
+          <h3 class="serif">Instagram CTA Section</h3>
+          <span class="code-chip" onclick="event.stopPropagation(); copyCode('SEC-insta', this)" title="Tap to copy code">SEC-insta 📋</span>
+          <svg class="chev" viewBox="0 0 24 24" fill="none"><path d="m6 9 6 6 6-6"/></svg>
+        </div>
+        <div class="content-section-body">
+          <div class="form-row"><label>Handle Text</label><input type="text" id="sc_instaHandle" placeholder="@yourhandle"></div>
+          <div class="form-row"><label>Title (HTML allowed)</label><input type="text" id="sc_instaTitle" placeholder="Follow along on &lt;em&gt;Instagram&lt;/em&gt;"></div>
+          <div class="form-row"><label>Description</label><textarea id="sc_instaDesc"></textarea></div>
+          <div class="form-row"><label>Button Text</label><input type="text" id="sc_instaBtnText" placeholder="Follow Us"></div>
+          <div class="section-save-row"><button onclick="saveInstaCta()">Save Instagram Section</button></div>
+        </div>
+      </div>
+
+      <!-- FOOTER -->
+      <div class="content-section" id="sec-footer">
+        <div class="content-section-head" onclick="toggleSection('sec-footer')">
+          <h3 class="serif">Footer</h3>
+          <span class="code-chip" onclick="event.stopPropagation(); copyCode('SEC-footer', this)" title="Tap to copy code">SEC-footer 📋</span>
+          <svg class="chev" viewBox="0 0 24 24" fill="none"><path d="m6 9 6 6 6-6"/></svg>
+        </div>
+        <div class="content-section-body">
+          <div class="form-row"><label>Tagline (under logo)</label><textarea id="sc_footerTagline"></textarea></div>
+          <div class="form-grid-2">
+            <div class="form-row"><label>Email</label><input type="text" id="sc_footerEmail" placeholder="hello@yourbrand.in"></div>
+            <div class="form-row"><label>Phone</label><input type="text" id="sc_footerPhone" placeholder="+91 98765 43210"></div>
+          </div>
+          <div class="form-row"><label>WhatsApp Number (with country code, digits only — e.g. 919326015055)</label><input type="text" id="sc_footerWa" placeholder="919326015055"></div>
+          <div class="form-row"><label>Copyright Line</label><input type="text" id="sc_footerCopyright" placeholder="© 2026 Your Brand. All rights reserved."></div>
+          <div class="form-row"><label>Bottom Tagline</label><input type="text" id="sc_footerTagline2" placeholder="Designed with care, for everyday shine."></div>
+          <div class="section-save-row"><button onclick="saveFooter()">Save Footer</button></div>
+        </div>
+      </div>
+
+    </div>
+    <!-- ============ END TAB: SITE CONTENT ============ -->
+
+    <!-- ============ TAB: CUSTOMERS ============ -->
+    <div class="admin-panel" id="panel-customers">
+      <div class="note-banner">
+        <svg fill="none" viewBox="0 0 24 24" stroke-width="1.6"><circle cx="12" cy="12" r="9"/><path d="M12 8v5" stroke-linecap="round"/><circle cx="12" cy="16.2" r="0.6" fill="currentColor" stroke="none"/></svg>
+        Customers appear here automatically once they log in with their phone number on the website and save their details.
+      </div>
+      <div class="toolbar">
+        <span class="count" id="custCount">Loading…</span>
+        <button class="add-btn" onclick="loadCustomers(true)"><svg fill="none" viewBox="0 0 24 24" stroke-width="1.8" style="width:14px;height:14px;stroke:currentColor;margin-right:6px;vertical-align:-2px;"><path d="M3 12a9 9 0 0 1 15.3-6.4M21 12a9 9 0 0 1-15.3 6.4"/><path d="M18.5 3v4.5H14"/><path d="M5.5 21v-4.5H10"/></svg>Refresh</button>
+      </div>
+      <input type="text" class="cust-search" id="custSearch" placeholder="Search by name, email or phone…" oninput="renderCustomerList()">
+      <div class="cust-list" id="custList"></div>
+    </div>
+    <!-- ============ END TAB: CUSTOMERS ============ -->
+
+    <!-- ============ TAB: ORDERS ============ -->
+    <div class="admin-panel" id="panel-orders">
+      <div class="note-banner">
+        <svg fill="none" viewBox="0 0 24 24" stroke-width="1.6"><circle cx="12" cy="12" r="9"/><path d="M12 8v5" stroke-linecap="round"/><circle cx="12" cy="16.2" r="0.6" fill="currentColor" stroke="none"/></svg>
+        Orders appear here once a customer pays via UPI on the website and taps "I've Paid". Please verify the payment landed in your bank/UPI app before marking as Paid.
+      </div>
+      <div class="toolbar">
+        <span class="count" id="ordCount">Loading…</span>
+        <button class="add-btn" onclick="loadOrders(true)"><svg fill="none" viewBox="0 0 24 24" stroke-width="1.8" style="width:14px;height:14px;stroke:currentColor;margin-right:6px;vertical-align:-2px;"><path d="M3 12a9 9 0 0 1 15.3-6.4M21 12a9 9 0 0 1-15.3 6.4"/><path d="M18.5 3v4.5H14"/><path d="M5.5 21v-4.5H10"/></svg>Refresh</button>
+      </div>
+      <div class="cust-list" id="ordList"></div>
+    </div>
+    <!-- ============ END TAB: ORDERS ============ -->
+
+  </div>
+</div>
+
+<!-- ADD/EDIT MODAL -->
+<div class="overlay" id="formOverlay">
+  <div class="modal">
+    <h2 id="formTitle" class="serif">Add New Item</h2>
+    <form id="productForm" onsubmit="return saveProduct(event)">
+      <input type="hidden" id="f_id">
+
+      <div class="form-row">
+        <label>Product Name</label>
+        <input type="text" id="f_name" required placeholder="e.g. Aria Layered Necklace">
+      </div>
+
+      <div class="form-grid-2">
+        <div class="form-row">
+          <label>Category</label>
+          <select id="f_cat" required onchange="handleCatChange()">
+          </select>
+        </div>
+        <div class="form-row" id="newCatRow" style="display:none;">
+          <label>New Category Name</label>
+          <input type="text" id="f_newCatName" placeholder="e.g. Anklets">
+        </div>
+        <div class="form-row">
+          <label>Badge (optional)</label>
+          <input type="text" id="f_badge" placeholder="e.g. New, Bestseller">
+        </div>
+      </div>
+
+      <div class="form-grid-2">
+        <div class="form-row">
+          <label>Price (₹)</label>
+          <input type="number" id="f_price" required min="0" placeholder="1499" oninput="syncDiscountFields('price')">
+        </div>
+        <div class="form-row">
+          <label>Discount % (optional — auto-fills old price below)</label>
+          <input type="number" id="f_discountPct" min="0" max="99" placeholder="e.g. 40" oninput="syncDiscountFields('pct')">
+        </div>
+      </div>
+
+      <div class="form-grid-2">
+        <div class="form-row">
+          <label>Old Price (auto-calculated, or type it directly)</label>
+          <input type="number" id="f_old" min="0" placeholder="1999" oninput="syncDiscountFields('old')">
+        </div>
+      </div>
+
+      <div class="form-row">
+        <label>Product Images (first photo is the cover image)</label>
+        <div style="display:flex; gap:8px; margin-bottom:8px;">
+          <button type="button" class="add-spec-btn" style="flex:1; margin-bottom:0; text-align:center;" onclick="document.getElementById('f_imgFile').click()"><svg fill="none" viewBox="0 0 24 24" stroke-width="1.6" style="width:15px;height:15px;stroke:currentColor;margin-right:6px;vertical-align:-3px;"><path d="M4 8h3l1.5-2h7L17 8h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/><circle cx="12" cy="13" r="3.3"/></svg>Choose from Gallery (multiple allowed)</button>
+        </div>
+        <input type="file" id="f_imgFile" accept="image/*" multiple style="display:none;" onchange="handleImageUpload(event)">
+        <div style="display:flex; gap:8px;">
+          <input type="text" id="f_imgUrlInput" placeholder="Or paste an image URL: https://..." style="flex:1;">
+          <button type="button" class="add-spec-btn" style="margin-bottom:0; padding:0 16px; flex:none;" onclick="addImageUrl()">+ Add</button>
+        </div>
+        <input type="hidden" id="f_img">
+        <div id="imgThumbsWrap" style="display:flex; flex-wrap:wrap; gap:10px; margin-top:12px;"></div>
+      </div>
+
+      <div class="form-row">
+        <label>Description</label>
+        <textarea id="f_desc" placeholder="Short product description"></textarea>
+      </div>
+
+      <div class="form-row">
+        <label>Specifications</label>
+        <div id="specsContainer"></div>
+        <button type="button" class="add-spec-btn" onclick="addSpecRow()">+ Add Spec</button>
+      </div>
+
+      <div class="modal-actions">
+        <button type="button" class="cancel-btn" onclick="closeForm()">Cancel</button>
+        <button type="submit" class="save-btn">Save Item</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="toast" id="toast">Saved</div>
+
+<script>
+/* ============ AUTH ============
+   Simple client-side password gate. Good enough to stop casual visitors
+   from finding/using the panel, but note: anyone who reads the page source
+   could find the password — this is NOT bank-grade security. */
+const ADMIN_PASSWORD = "bloom2026"; // change this to whatever you like
+
+function togglePwVisibility(inputId, btn){
+  const input = document.getElementById(inputId);
+  if(!input) return;
+  const showing = input.type === 'text';
+  input.type = showing ? 'password' : 'text';
+  btn.setAttribute('aria-label', showing ? 'Show password' : 'Hide password');
+  btn.innerHTML = showing
+    ? `<svg viewBox="0 0 24 24"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg>`
+    : `<svg viewBox="0 0 24 24"><path d="M17.94 17.94A10.94 10.94 0 0 1 12 19c-7 0-11-7-11-7a21.4 21.4 0 0 1 5.06-5.94M9.9 4.24A10.6 10.6 0 0 1 12 5c7 0 11 7 11 7a21.4 21.4 0 0 1-2.61 3.68M14.12 14.12a3 3 0 1 1-4.24-4.24"/><path d="M1 1l22 22"/></svg>`;
+}
+
+function tryLogin(){
+  const val = document.getElementById('pwInput').value;
+  if(val === ADMIN_PASSWORD){
+    sessionStorage.setItem('bb_admin_auth', 'true');
+    showAdmin();
+  } else {
+    document.getElementById('loginError').style.display = 'block';
+  }
+}
+
+function logout(){
+  sessionStorage.removeItem('bb_admin_auth');
+  document.getElementById('adminScreen').style.display = 'none';
+  document.getElementById('loginScreen').style.display = 'flex';
+  document.getElementById('pwInput').value = '';
+}
+
+function showAdmin(){
+  document.getElementById('loginScreen').style.display = 'none';
+  document.getElementById('adminScreen').style.display = 'block';
+  renderGrid();
+  renderCategoryCodesList();
+}
+
+if(sessionStorage.getItem('bb_admin_auth') === 'true'){
+  showAdmin();
+}
+
+/* ============ PRODUCT DATA ============ */
+const defaultProducts = [
+  {id:1, name:"Aria Layered Necklace", cat:"necklace", price:1499, old:1999, img:"https://images.unsplash.com/photo-1599643478518-a784e5dc4c8f?q=80&w=800&auto=format&fit=crop", badge:"Bestseller", desc:"A delicate double-layer chain finished in rose gold, designed to sit beautifully at the collarbone.", specs:{Material:"Rose Gold Plated Brass", Length:"16\" + 18\" adjustable", Finish:"Tarnish Resistant"}},
+  {id:2, name:"Bloom Pendant Necklace", cat:"necklace", price:1299, old:0, img:"https://images.unsplash.com/photo-1515562141207-7a88fb7ce338?q=80&w=800&auto=format&fit=crop", badge:"", desc:"A single floral pendant on a fine chain — subtle enough for everyday, pretty enough to notice.", specs:{Material:"18k Gold Plated", Length:"18\" adjustable", Finish:"Water Resistant"}},
+  {id:3, name:"Ivory Pearl Drop Necklace", cat:"necklace", price:1799, old:2199, img:"https://images.unsplash.com/photo-1611591437281-460bfbe1220a?q=80&w=800&auto=format&fit=crop", badge:"New", desc:"Freshwater pearl drop on a rose gold chain, made for evenings that call for a little more shine.", specs:{Material:"Rose Gold + Freshwater Pearl", Length:"17\" fixed", Finish:"Hypoallergenic"}},
+  {id:4, name:"Solstice Chain Necklace", cat:"necklace", price:1599, old:0, img:"https://images.unsplash.com/photo-1573408301185-9146fe634ad0?q=80&w=800&auto=format&fit=crop", badge:"", desc:"A bold link chain with a soft rose gold finish — the everyday statement piece.", specs:{Material:"Rose Gold Plated", Length:"20\" fixed", Finish:"Tarnish Resistant"}},
+  {id:5, name:"Petal Stack Ring", cat:"ring", price:899, old:1199, img:"https://images.unsplash.com/photo-1605100804763-247f67b3557e?q=80&w=800&auto=format&fit=crop", badge:"Bestseller", desc:"A set of three thin bands designed to be stacked or worn alone, in soft rose gold.", specs:{Material:"Rose Gold Plated", Sizing:"Adjustable", Finish:"Tarnish Resistant"}},
+  {id:6, name:"Solitaire Promise Ring", cat:"ring", price:1099, old:0, img:"https://images.unsplash.com/photo-1603561596112-0a132b757442?q=80&w=800&auto=format&fit=crop", badge:"New", desc:"A single cubic zirconia stone set in a delicate rose gold band, made for everyday sparkle.", specs:{Material:"Rose Gold + CZ Stone", Sizing:"US 5–9", Finish:"Hypoallergenic"}},
+  {id:7, name:"Vintage Twist Ring", cat:"ring", price:799, old:999, img:"https://images.unsplash.com/photo-1596944924616-7b38e7cfac36?q=80&w=800&auto=format&fit=crop", badge:"", desc:"An intertwined band with a soft antique finish, inspired by heirloom pieces.", specs:{Material:"Rose Gold Plated", Sizing:"Adjustable", Finish:"Antique Finish"}},
+  {id:8, name:"Bloom Signet Ring", cat:"ring", price:999, old:0, img:"https://images.unsplash.com/photo-1518544866330-4c7a7db1c8ce?q=80&w=800&auto=format&fit=crop", badge:"", desc:"A modern take on the classic signet, engraved with our signature bloom motif.", specs:{Material:"Rose Gold Plated Brass", Sizing:"US 5–9", Finish:"Tarnish Resistant"}},
+  {id:9, name:"Blossom Chain Bracelet", cat:"bracelet", price:999, old:1299, img:"https://images.unsplash.com/photo-1611955167811-4711904bb9f8?q=80&w=800&auto=format&fit=crop", badge:"Bestseller", desc:"A fine chain bracelet with a single bloom charm, light enough to wear every single day.", specs:{Material:"Rose Gold Plated", Length:"7\" + 1\" extender", Finish:"Tarnish Resistant"}},
+  {id:10, name:"Pearl Wrap Bracelet", cat:"bracelet", price:1199, old:0, img:"https://images.unsplash.com/photo-1611652022419-a9419f74343d?q=80&w=800&auto=format&fit=crop", badge:"New", desc:"Freshwater pearls wrapped on a delicate rose gold chain for a soft, layered look.", specs:{Material:"Rose Gold + Pearl", Length:"6.5\" adjustable", Finish:"Water Resistant"}},
+  {id:11, name:"Cuban Link Bracelet", cat:"bracelet", price:1099, old:1399, img:"https://images.unsplash.com/photo-1573408301185-9146fe634ad0?q=80&w=800&auto=format&fit=crop", badge:"", desc:"A bolder link bracelet for stacking with your everyday pieces or wearing solo.", specs:{Material:"Rose Gold Plated", Length:"7\" fixed", Finish:"Tarnish Resistant"}},
+  {id:12, name:"Bead & Chain Bracelet", cat:"bracelet", price:849, old:0, img:"https://images.unsplash.com/photo-1611591437281-460bfbe1220a?q=80&w=800&auto=format&fit=crop", badge:"", desc:"Delicate beads paired with a fine chain — an easy layering piece for any wrist stack.", specs:{Material:"Rose Gold Plated + Glass Bead", Length:"7\" adjustable", Finish:"Hypoallergenic"}},
+  {id:13, name:"Bloom Drop Earrings", cat:"earring", price:749, old:999, img:"https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?q=80&w=800&auto=format&fit=crop", badge:"Bestseller", desc:"Lightweight floral drop earrings that catch the light with every turn.", specs:{Material:"Rose Gold Plated", Type:"Push Back", Finish:"Hypoallergenic"}},
+  {id:14, name:"Pearl Stud Earrings", cat:"earring", price:599, old:0, img:"https://images.unsplash.com/photo-1620656798579-1984d9e87df7?q=80&w=800&auto=format&fit=crop", badge:"New", desc:"Classic freshwater pearl studs — the everyday essential you'll reach for daily.", specs:{Material:"Rose Gold + Pearl", Type:"Push Back", Finish:"Water Resistant"}},
+  {id:15, name:"Hoop Huggie Earrings", cat:"earring", price:699, old:849, img:"https://images.unsplash.com/photo-1630019852942-f89202989a59?q=80&w=800&auto=format&fit=crop", badge:"", desc:"Small huggie hoops for everyday wear, comfortable enough to forget you're wearing them.", specs:{Material:"Rose Gold Plated", Type:"Hinged Hoop", Finish:"Tarnish Resistant"}},
+];
+
+let products = [];
+
+const defaultCategoryMeta = {
+  necklace: { label:"Necklaces", desc:"Delicate chains and statement pendants, plated to last and layered to love.", img:"https://images.unsplash.com/photo-1599643478518-a784e5dc4c8f?q=80&w=1200&auto=format&fit=crop", order:0 },
+  ring: { label:"Rings", desc:"From everyday stacks to statement solitaires — designed to be worn, not just kept.", img:"https://images.unsplash.com/photo-1605100804763-247f67b3557e?q=80&w=1200&auto=format&fit=crop", order:1 },
+  bracelet: { label:"Bracelets", desc:"Fine chains and charms made for everyday stacking.", img:"https://images.unsplash.com/photo-1611955167811-4711904bb9f8?q=80&w=1200&auto=format&fit=crop", order:2 },
+  earring: { label:"Earrings", desc:"Lightweight studs, hoops and drops that catch the light with every turn.", img:"https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?q=80&w=1200&auto=format&fit=crop", order:3 }
+};
+
+/* Returns [key, meta] pairs sorted by meta.order (falls back to insertion order if missing) */
+function sortedCategoryEntries(){
+  return Object.entries(categoryMeta)
+    .map(([key, meta], i) => [key, meta, (typeof meta.order === 'number' ? meta.order : 1000 + i)])
+    .sort((a, b) => a[2] - b[2])
+    .map(([key, meta]) => [key, meta]);
+}
+let categoryMeta = {};
+
+/* ============ FIRESTORE SYNC ============
+   Data lives in Firestore (cloud) so it survives forever across devices/browsers.
+   localStorage is kept only as an instant-load cache + offline fallback. */
+
+async function waitForFirebase(){
+  if(window.bbFirebaseReady) return;
+  await new Promise(resolve => document.addEventListener('bbFirebaseReady', resolve, { once: true }));
+}
+
+async function loadCategoryMeta(){
+  // 1. Show cached version instantly (from localStorage) so UI isn't blank
+  try {
+    const saved = localStorage.getItem('bb_categories');
+    const parsed = saved ? JSON.parse(saved) : null;
+    categoryMeta = (parsed && typeof parsed === 'object' && Object.keys(parsed).length > 0) ? parsed : { ...defaultCategoryMeta };
+  } catch(e){
+    categoryMeta = { ...defaultCategoryMeta };
+  }
+
+  // 2. Then fetch the real cloud copy and override
+  try {
+    await waitForFirebase();
+    const { db, doc, getDoc } = window.bbFirestore;
+    const snap = await getDoc(doc(db, 'blushBloom', 'categories'));
+    if(snap.exists()){
+      const cloudData = snap.data().value;
+      if(cloudData && Object.keys(cloudData).length > 0){
+        categoryMeta = cloudData;
+        localStorage.setItem('bb_categories', JSON.stringify(categoryMeta));
+      }
+    } else {
+      // First time ever — seed the cloud with defaults
+      await saveCategoryMeta();
+    }
+  } catch(e){
+    console.warn('Could not reach cloud database, using local cache.', e);
+  }
+}
+
+async function saveCategoryMeta(){
+  localStorage.setItem('bb_categories', JSON.stringify(categoryMeta));
+  try {
+    await waitForFirebase();
+    const { db, doc, setDoc } = window.bbFirestore;
+    await setDoc(doc(db, 'blushBloom', 'categories'), { value: categoryMeta });
+  } catch(e){
+    console.warn('Could not save to cloud database. Changes are saved locally only for now.', e);
+    showToast('⚠️ Saved locally — cloud sync failed');
+  }
+}
+
+async function loadProducts(){
+  try {
+    const saved = localStorage.getItem('bb_products');
+    const parsed = saved ? JSON.parse(saved) : null;
+    products = Array.isArray(parsed) && parsed.length > 0 ? parsed : [...defaultProducts];
+  } catch(e){
+    products = [...defaultProducts];
+  }
+
+  try {
+    await waitForFirebase();
+    const { db, doc, getDoc } = window.bbFirestore;
+    const snap = await getDoc(doc(db, 'blushBloom', 'products'));
+    if(snap.exists()){
+      const cloudData = snap.data().value;
+      if(Array.isArray(cloudData) && cloudData.length > 0){
+        products = cloudData;
+        localStorage.setItem('bb_products', JSON.stringify(products));
+      }
+    } else {
+      await saveProducts();
+    }
+  } catch(e){
+    console.warn('Could not reach cloud database, using local cache.', e);
+  }
+}
+
+async function saveProducts(){
+  localStorage.setItem('bb_products', JSON.stringify(products));
+  try {
+    await waitForFirebase();
+    const { db, doc, setDoc } = window.bbFirestore;
+    await setDoc(doc(db, 'blushBloom', 'products'), { value: products });
+  } catch(e){
+    console.warn('Could not save to cloud database. Changes are saved locally only for now.', e);
+    showToast('⚠️ Saved locally — cloud sync failed');
+  }
+}
+
+function populateCatDropdown(selected){
+  const sel = document.getElementById('f_cat');
+  const options = sortedCategoryEntries().map(([key, meta]) =>
+    `<option value="${escapeAttr(key)}">${escapeHtml(meta.label)}</option>`
+  ).join('');
+  sel.innerHTML = options + `<option value="__new__">+ Add New Category</option>`;
+  if(selected) sel.value = selected;
+}
+
+function handleCatChange(){
+  const val = document.getElementById('f_cat').value;
+  document.getElementById('newCatRow').style.display = (val === '__new__') ? 'block' : 'none';
+}
+
+/* Turn a typed category name into a safe internal key, e.g. "Anklets" -> "anklets" */
+function slugifyCategory(name){
+  return name.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || ('cat-' + Date.now());
+}
+
+/* ============ TRENDING OFFER BANNER ============ */
+let currentOffer = { active: false, img: '', badge: '', title: '', desc: '', btnText: '', link: '', tags: ['Limited time offer'] };
+
+async function loadOffer(){
+  try {
+    const saved = localStorage.getItem('bb_offer');
+    if(saved) currentOffer = { ...currentOffer, ...JSON.parse(saved) };
+  } catch(e){}
+
+  try {
+    await waitForFirebase();
+    const { db, doc, getDoc } = window.bbFirestore;
+    const snap = await getDoc(doc(db, 'blushBloom', 'offer'));
+    if(snap.exists()){
+      currentOffer = { ...currentOffer, ...snap.data().value };
+      localStorage.setItem('bb_offer', JSON.stringify(currentOffer));
+    }
+  } catch(e){
+    console.warn('Could not reach cloud database for offer, using local cache.', e);
+  }
+
+  populateOfferForm();
+}
+
+async function saveOfferToStore(){
+  localStorage.setItem('bb_offer', JSON.stringify(currentOffer));
+  try {
+    await waitForFirebase();
+    const { db, doc, setDoc } = window.bbFirestore;
+    await setDoc(doc(db, 'blushBloom', 'offer'), { value: currentOffer });
+  } catch(e){
+    console.warn('Could not save offer to cloud database.', e);
+    showToast('⚠️ Saved locally — cloud sync failed');
+  }
+}
+
+function populateOfferForm(){
+  document.getElementById('offer_active').checked = !!currentOffer.active;
+  document.getElementById('offer_img').value = currentOffer.img || '';
+  document.getElementById('offer_badge').value = currentOffer.badge || '';
+  document.getElementById('offer_title').value = currentOffer.title || '';
+  document.getElementById('offer_desc').value = currentOffer.desc || '';
+  document.getElementById('offer_btnText').value = currentOffer.btnText || '';
+  document.getElementById('offer_link').value = currentOffer.link || '';
+  if(!currentOffer.tags || !currentOffer.tags.length){
+    const migrated = [currentOffer.timerText, currentOffer.discountTag].filter(t => t && t.trim());
+    currentOffer.tags = migrated.length ? migrated : ['Limited time offer'];
+  }
+  renderOfferTagsEditor();
+  onOfferToggle();
+  if(currentOffer.img) showOfferImgPreview(currentOffer.img);
+}
+
+function renderOfferTagsEditor(){
+  const wrap = document.getElementById('offerTagsEditor');
+  if(!wrap) return;
+  if(!currentOffer.tags || !currentOffer.tags.length) currentOffer.tags = [''];
+  wrap.innerHTML = currentOffer.tags.map((t, i) => `
+    <div style="display:flex; gap:8px; margin-bottom:8px; align-items:center;">
+      <input type="text" id="offer_tag_${i}" value="${escapeAttr(t || '')}" placeholder="e.g. Limited time offer, Buy 1 Get 1 Free" style="flex:1;">
+      <button type="button" class="danger-small-btn" onclick="removeOfferTagRow(${i})">✕</button>
+    </div>
+  `).join('');
+}
+function addOfferTagRow(){
+  syncOfferTagsFromForm();
+  currentOffer.tags.push('');
+  renderOfferTagsEditor();
+}
+function removeOfferTagRow(i){
+  syncOfferTagsFromForm();
+  currentOffer.tags.splice(i, 1);
+  if(!currentOffer.tags.length) currentOffer.tags = [''];
+  renderOfferTagsEditor();
+}
+function syncOfferTagsFromForm(){
+  const inputs = document.querySelectorAll('#offerTagsEditor input');
+  currentOffer.tags = Array.from(inputs).map(inp => inp.value);
+}
+
+function onOfferToggle(){
+  const isOn = document.getElementById('offer_active').checked;
+  document.getElementById('offerToggleLabel').textContent = isOn ? 'On' : 'Off';
+  document.getElementById('offerFormWrap').classList.toggle('disabled', !isOn);
+}
+
+function showOfferImgPreview(src){
+  document.getElementById('offerImgPreview').src = src;
+  document.getElementById('offerImgPreviewWrap').style.display = 'block';
+}
+
+function handleOfferImageUpload(event){
+  const file = event.target.files[0];
+  if(!file) return;
+  if(!file.type.startsWith('image/')){
+    alert('Please choose an image file.');
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = function(e){
+    const img = new Image();
+    img.onload = function(){
+      const maxDim = 1400;
+      let w = img.width, h = img.height;
+      if(w > h && w > maxDim){ h = Math.round(h * (maxDim / w)); w = maxDim; }
+      else if(h > maxDim){ w = Math.round(w * (maxDim / h)); h = maxDim; }
+      const canvas = document.createElement('canvas');
+      canvas.width = w; canvas.height = h;
+      canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+      const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.78);
+      document.getElementById('offer_img').value = compressedDataUrl;
+      showOfferImgPreview(compressedDataUrl);
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  const offerUrlInput = document.getElementById('offer_img');
+  if(offerUrlInput){
+    offerUrlInput.addEventListener('input', () => {
+      if(offerUrlInput.value) showOfferImgPreview(offerUrlInput.value);
+      else document.getElementById('offerImgPreviewWrap').style.display = 'none';
+    });
+  }
+});
+
+async function saveOffer(){
+  const active = document.getElementById('offer_active').checked;
+  const img = document.getElementById('offer_img').value.trim();
+  const badge = document.getElementById('offer_badge').value.trim();
+  const title = document.getElementById('offer_title').value.trim();
+  const desc = document.getElementById('offer_desc').value.trim();
+  const btnText = document.getElementById('offer_btnText').value.trim();
+  const link = document.getElementById('offer_link').value.trim();
+  syncOfferTagsFromForm();
+  const tags = currentOffer.tags.map(t => t.trim()).filter(Boolean);
+
+  if(active && (!img || !title)){
+    alert('Please add at least a banner image and a title before turning the offer on.');
+    return;
+  }
+
+  currentOffer = { active, img, badge, title, desc, btnText, link, tags };
+  await saveOfferToStore();
+  showToast(active ? 'Offer banner is live' : 'Offer banner saved (off)');
+}
+
+let bbDataReady = false;
+
+async function initData(){
+  await loadProducts();
+  await loadCategoryMeta();
+  await loadOffer();
+  bbDataReady = true;
+  if(sessionStorage.getItem('bb_admin_auth') === 'true'){
+    renderGrid();
+    renderCategoryCodesList();
+  }
+}
+initData();
+
+/* ============ RENDER GRID ============ */
+function renderGrid(){
+  const grid = document.getElementById('productGrid');
+  document.getElementById('itemCount').textContent = products.length + (products.length === 1 ? ' item' : ' items');
+
+  if(products.length === 0){
+    grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1;">No items yet. Click "Add New Item" to get started.</div>`;
+    return;
+  }
+
+  grid.innerHTML = products.map(p => `
+    <div class="p-card">
+      <img src="${escapeAttr(p.img)}" alt="${escapeAttr(p.name)}" onerror="this.src='https://via.placeholder.com/400x300?text=No+Image'">
+      <div class="p-card-body">
+        <div class="code-chip-row">
+          <span class="code-chip" onclick="copyCode('PROD-${p.id}', this)" title="Tap to copy code">PROD-${p.id} 📋</span>
+        </div>
+        <div class="p-cat">${escapeHtml(categoryMeta[p.cat] ? categoryMeta[p.cat].label : p.cat)}</div>
+        <div class="p-name">${escapeHtml(p.name)}</div>
+        <div class="p-price">₹${Number(p.price).toLocaleString('en-IN')}${p.old ? `<span class="old">₹${Number(p.old).toLocaleString('en-IN')}</span>` : ''}</div>
+        <div class="p-actions">
+          <button class="edit-btn" onclick="openForm(${p.id})">Edit</button>
+          <button class="del-btn" onclick="deleteProduct(${p.id})">Delete</button>
+        </div>
+      </div>
+    </div>
+  `).join('');
+}
+
+/* ============ COPYABLE CODES ============
+   Every product, category, and content section has a short code
+   (PROD-id / CAT-key / SEC-name / OFFER) shown in the admin panel.
+   These codes are used purely inside the admin panel: paste a code into
+   any "Link / Code" field (e.g. a hero slide button) and that button will
+   jump straight to the matching section/product/category on the live site. */
+function copyCode(code, el){
+  navigator.clipboard.writeText(code).then(() => {
+    showToast(`Copied: ${code}`);
+    if(el){
+      const original = el.textContent;
+      el.textContent = '✓ Copied';
+      setTimeout(() => { el.textContent = original; }, 1200);
+    }
+  }).catch(() => { window.prompt('Copy this code:', code); });
+}
+
+function renderCategoryCodesList(){
+  const wrap = document.getElementById('categoryCodesList');
+  if(!wrap) return;
+  const entries = sortedCategoryEntries();
+  if(entries.length === 0){
+    wrap.innerHTML = `<div class="empty-state">No categories yet — add a product with a category first.</div>`;
+    return;
+  }
+  wrap.innerHTML = entries.map(([key, meta], idx) => {
+    const imgSrc = meta.img || '';
+    const isFirst = idx === 0;
+    const isLast = idx === entries.length - 1;
+    return `
+    <div class="cat-edit-card" style="border:1.5px solid var(--border); border-radius:10px; padding:14px; margin-bottom:14px;">
+      <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:10px;">
+        <input type="text" id="catLabelInput-${escapeAttr(key)}" value="${escapeAttr(meta.label || key)}" placeholder="Category name" style="font-weight:600; flex:1; min-width:0;">
+        <span class="code-chip" onclick="copyCode('CAT-${escapeAttr(key)}', this)" title="Tap to copy code">CAT-${escapeHtml(key)} 📋</span>
+      </div>
+      <div style="display:flex; gap:8px; margin-bottom:10px;">
+        <button type="button" class="add-spec-btn" style="flex:1; margin-bottom:0; text-align:center;" onclick="renameCategoryLabel('${escapeAttr(key)}')">✏️ Save Name</button>
+        <button type="button" class="add-spec-btn danger" style="flex:1; margin-bottom:0; text-align:center;" onclick="deleteCategory('${escapeAttr(key)}')">🗑️ Delete Category</button>
+      </div>
+      <textarea id="catDescInput-${escapeAttr(key)}" placeholder="Category description (shown on category page)" rows="2" style="width:100%; margin-bottom:8px; resize:vertical; font-family:inherit;">${escapeHtml(meta.desc || '')}</textarea>
+      <div class="section-save-row" style="margin-bottom:10px;"><button onclick="saveCategoryDesc('${escapeAttr(key)}')">Save Description</button></div>
+      <div style="display:flex; gap:8px; margin-bottom:10px;">
+        <button type="button" class="add-spec-btn" style="flex:1; margin-bottom:0; text-align:center; ${isFirst ? 'opacity:.4; pointer-events:none;' : ''}" onclick="moveCategoryOrder('${escapeAttr(key)}', -1)">↑ Move Up</button>
+        <button type="button" class="add-spec-btn" style="flex:1; margin-bottom:0; text-align:center; ${isLast ? 'opacity:.4; pointer-events:none;' : ''}" onclick="moveCategoryOrder('${escapeAttr(key)}', 1)">↓ Move Down</button>
+      </div>
+      <div id="catImgPreviewWrap-${escapeAttr(key)}" style="margin-bottom:10px; ${imgSrc ? '' : 'display:none;'}">
+        <img id="catImgPreview-${escapeAttr(key)}" src="${escapeAttr(imgSrc)}" style="width:100%; max-height:160px; object-fit:cover; border-radius:8px; border:1.5px solid var(--border);">
+      </div>
+      <div style="display:flex; gap:8px; margin-bottom:8px;">
+        <button type="button" class="add-spec-btn" style="flex:1; margin-bottom:0; text-align:center;" onclick="document.getElementById('catImgFile-${escapeAttr(key)}').click()"><svg fill="none" viewBox="0 0 24 24" stroke-width="1.6" style="width:15px;height:15px;stroke:currentColor;margin-right:6px;vertical-align:-3px;"><path d="M4 8h3l1.5-2h7L17 8h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/><circle cx="12" cy="13" r="3.3"/></svg>Choose from Gallery</button>
+      </div>
+      <input type="file" id="catImgFile-${escapeAttr(key)}" accept="image/*" style="display:none;" onchange="handleCategoryImageUpload(event, '${escapeAttr(key)}')">
+      <input type="text" id="catImgUrl-${escapeAttr(key)}" value="${escapeAttr(imgSrc)}" placeholder="Or paste an image URL: https://..." oninput="handleCategoryImageUrlInput('${escapeAttr(key)}')">
+      <div class="section-save-row"><button onclick="saveCategoryImage('${escapeAttr(key)}')">Save Photo</button></div>
+    </div>
+  `;
+  }).join('');
+}
+
+async function renameCategoryLabel(key){
+  const input = document.getElementById(`catLabelInput-${key}`);
+  if(!input) return;
+  const newLabel = input.value.trim();
+  if(!newLabel){
+    alert('Please enter a category name.');
+    return;
+  }
+  if(!categoryMeta[key]) return;
+  categoryMeta[key].label = newLabel;
+  await saveCategoryMeta();
+  showToast(`✅ Renamed to "${newLabel}"`);
+}
+
+async function saveCategoryDesc(key){
+  const input = document.getElementById(`catDescInput-${key}`);
+  if(!input) return;
+  if(!categoryMeta[key]) return;
+  categoryMeta[key].desc = input.value.trim();
+  await saveCategoryMeta();
+  showToast('✅ Description saved');
+}
+
+async function deleteCategory(key){
+  if(!categoryMeta[key]) return;
+  const label = categoryMeta[key].label || key;
+  const affected = products.filter(p => p.cat === key).length;
+
+  if(key === 'uncategorized' && affected > 0){
+    alert(`"${label}" still has ${affected} product${affected === 1 ? '' : 's'} in it.\n\nPlease move ${affected === 1 ? 'it' : 'them'} to another category first, then delete "Uncategorized".`);
+    return;
+  }
+
+  const msg = affected > 0
+    ? `Delete "${label}"?\n\n${affected} product${affected === 1 ? '' : 's'} in this category will be moved to "Uncategorized".\n\nThis cannot be undone.`
+    : `Delete "${label}"? This cannot be undone.`;
+  if(!confirm(msg)) return;
+
+  // Move any products in this category to "uncategorized"
+  if(affected > 0){
+    if(!categoryMeta.uncategorized){
+      categoryMeta.uncategorized = { label:"Uncategorized", desc:"", img:"", order: Object.keys(categoryMeta).length + 1000 };
+    }
+    products.forEach(p => { if(p.cat === key) p.cat = 'uncategorized'; });
+    await saveProducts();
+  }
+
+  delete categoryMeta[key];
+  await saveCategoryMeta();
+  renderCategoryCodesList();
+  populateCatDropdown();
+  showToast(`🗑️ "${label}" deleted${affected > 0 ? ' — products moved to Uncategorized' : ''}`);
+}
+
+function moveCategoryOrder(key, direction){
+  const entries = sortedCategoryEntries();
+  const idx = entries.findIndex(([k]) => k === key);
+  const swapIdx = idx + direction;
+  if(idx === -1 || swapIdx < 0 || swapIdx >= entries.length) return;
+
+  // Re-number all categories 0..n-1 in the new order, then persist
+  const reordered = entries.map(([k, m]) => [k, m]);
+  const [moved] = reordered.splice(idx, 1);
+  reordered.splice(swapIdx, 0, moved);
+  reordered.forEach(([k, m], i) => { categoryMeta[k].order = i; });
+
+  saveCategoryMeta();
+  renderCategoryCodesList();
+  showToast(`✅ ${categoryMeta[key].label || key} moved`);
+}
+
+function showCategoryImgPreview(key, src){
+  const wrap = document.getElementById(`catImgPreviewWrap-${key}`);
+  const img = document.getElementById(`catImgPreview-${key}`);
+  if(!wrap || !img) return;
+  if(src){
+    img.src = src;
+    wrap.style.display = 'block';
+  } else {
+    wrap.style.display = 'none';
+  }
+}
+
+function handleCategoryImageUrlInput(key){
+  const val = document.getElementById(`catImgUrl-${key}`).value.trim();
+  showCategoryImgPreview(key, val);
+}
+
+function handleCategoryImageUpload(event, key){
+  const file = event.target.files[0];
+  if(!file) return;
+
+  if(!file.type.startsWith('image/')){
+    alert('Please choose an image file.');
+    return;
+  }
+
+  const reader = new FileReader();
+  reader.onload = function(e){
+    const img = new Image();
+    img.onload = function(){
+      // Resize/compress so storage stays small
+      const maxDim = 1200;
+      let w = img.width, h = img.height;
+      if(w > h && w > maxDim){ h = Math.round(h * (maxDim / w)); w = maxDim; }
+      else if(h > maxDim){ w = Math.round(w * (maxDim / h)); h = maxDim; }
+
+      const canvas = document.createElement('canvas');
+      canvas.width = w; canvas.height = h;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, w, h);
+
+      const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.8);
+      document.getElementById(`catImgUrl-${key}`).value = compressedDataUrl;
+      showCategoryImgPreview(key, compressedDataUrl);
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+async function saveCategoryImage(key){
+  const val = document.getElementById(`catImgUrl-${key}`).value.trim();
+  if(!val){
+    alert('Please choose a photo or paste an image URL first.');
+    return;
+  }
+  if(!categoryMeta[key]) return;
+  categoryMeta[key].img = val;
+  await saveCategoryMeta();
+  showToast(`✅ ${categoryMeta[key].label || key} photo updated`);
+}
+
+function escapeHtml(str){
+  return String(str ?? '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+}
+function escapeAttr(str){ return escapeHtml(str); }
+
+/* ============ PRICE + DISCOUNT % → OLD PRICE ============ */
+function syncDiscountFields(source){
+  const priceEl = document.getElementById('f_price');
+  const pctEl = document.getElementById('f_discountPct');
+  const oldEl = document.getElementById('f_old');
+  const price = parseFloat(priceEl.value) || 0;
+
+  if(source === 'old'){
+    // User typed the old price directly — back-calculate the discount %.
+    const old = parseFloat(oldEl.value) || 0;
+    if(price > 0 && old > price){
+      pctEl.value = Math.round(((old - price) / old) * 100);
+    } else if(!oldEl.value){
+      pctEl.value = '';
+    }
+    return;
+  }
+
+  // source is 'price' or 'pct' — compute old price = price + discount.
+  const pct = parseFloat(pctEl.value) || 0;
+  if(price > 0 && pct > 0 && pct < 100){
+    oldEl.value = Math.round(price / (1 - pct / 100));
+  }
+}
+
+/* ============ FORM (ADD/EDIT) ============ */
+function openForm(id){
+  if(!bbDataReady){
+    showToast('⏳ Still loading data — please wait a second and try again');
+    return;
+  }
+  document.getElementById('productForm').reset();
+  document.getElementById('specsContainer').innerHTML = '';
+  document.getElementById('newCatRow').style.display = 'none';
+  document.getElementById('f_newCatName').value = '';
+
+  if(id){
+    const p = products.find(x => x.id === id);
+    if(!p) return;
+    document.getElementById('formTitle').textContent = 'Edit Item';
+    document.getElementById('f_id').value = p.id;
+    document.getElementById('f_name').value = p.name;
+    populateCatDropdown(p.cat);
+    document.getElementById('f_badge').value = p.badge || '';
+    document.getElementById('f_price').value = p.price;
+    document.getElementById('f_old').value = p.old || '';
+    if(p.old && p.price && p.old > p.price){
+      document.getElementById('f_discountPct').value = Math.round(((p.old - p.price) / p.old) * 100);
+    } else {
+      document.getElementById('f_discountPct').value = '';
+    }
+    formImages = (Array.isArray(p.images) && p.images.length) ? p.images.slice() : (p.img ? [p.img] : []);
+    renderImageThumbs();
+    document.getElementById('f_desc').value = p.desc || '';
+    const specs = p.specs || {};
+    Object.keys(specs).forEach(k => addSpecRow(k, specs[k]));
+  } else {
+    document.getElementById('formTitle').textContent = 'Add New Item';
+    document.getElementById('f_id').value = '';
+    populateCatDropdown();
+    formImages = [];
+    renderImageThumbs();
+    addSpecRow('Material', '');
+  }
+
+  document.getElementById('formOverlay').classList.add('show');
+}
+
+function closeForm(){
+  document.getElementById('formOverlay').classList.remove('show');
+}
+
+/* ============ IMAGE UPLOAD (multi-image gallery picker) ============ */
+let formImages = [];
+
+function renderImageThumbs(){
+  const wrap = document.getElementById('imgThumbsWrap');
+  document.getElementById('f_img').value = formImages[0] || '';
+  if(formImages.length === 0){
+    wrap.innerHTML = `<div style="font-size:12.5px; color:var(--muted);">No images yet — add at least one photo above.</div>`;
+    return;
+  }
+  wrap.innerHTML = formImages.map((src, idx) => `
+    <div style="position:relative; width:76px; height:76px;">
+      <img src="${escapeAttr(src)}" style="width:100%; height:100%; object-fit:cover; border-radius:8px; border:1.5px solid var(--border);">
+      ${idx === 0 ? `<span style="position:absolute; bottom:3px; left:3px; background:var(--rose,#c98a8a); color:#fff; font-size:9px; padding:2px 5px; border-radius:4px; line-height:1;">Cover</span>` : ''}
+      <button type="button" onclick="removeFormImage(${idx})" title="Remove" style="position:absolute; top:-7px; right:-7px; width:20px; height:20px; border-radius:50%; background:#fff; border:1.5px solid var(--border); font-size:11px; line-height:1; cursor:pointer; padding:0;">✕</button>
+      ${idx > 0 ? `<button type="button" onclick="moveFormImage(${idx},-1)" title="Move earlier / make cover" style="position:absolute; bottom:-8px; left:-6px; width:20px; height:20px; border-radius:50%; background:#fff; border:1.5px solid var(--border); font-size:10px; cursor:pointer; padding:0;">←</button>` : ''}
+      ${idx < formImages.length - 1 ? `<button type="button" onclick="moveFormImage(${idx},1)" title="Move later" style="position:absolute; bottom:-8px; right:-6px; width:20px; height:20px; border-radius:50%; background:#fff; border:1.5px solid var(--border); font-size:10px; cursor:pointer; padding:0;">→</button>` : ''}
+    </div>
+  `).join('');
+}
+
+function addFormImage(url){
+  if(!url) return;
+  formImages.push(url);
+  renderImageThumbs();
+}
+
+function removeFormImage(idx){
+  formImages.splice(idx, 1);
+  renderImageThumbs();
+}
+
+function moveFormImage(idx, dir){
+  const newIdx = idx + dir;
+  if(newIdx < 0 || newIdx >= formImages.length) return;
+  [formImages[idx], formImages[newIdx]] = [formImages[newIdx], formImages[idx]];
+  renderImageThumbs();
+}
+
+function addImageUrl(){
+  const input = document.getElementById('f_imgUrlInput');
+  const url = input.value.trim();
+  if(!url) return;
+  addFormImage(url);
+  input.value = '';
+}
+
+function handleImageUpload(event){
+  const files = Array.from(event.target.files || []);
+  if(files.length === 0) return;
+
+  files.forEach(file => {
+    if(!file.type.startsWith('image/')) return;
+
+    const reader = new FileReader();
+    reader.onload = function(e){
+      const img = new Image();
+      img.onload = function(){
+        // Resize/compress so storage stays small
+        const maxDim = 900;
+        let w = img.width, h = img.height;
+        if(w > h && w > maxDim){ h = Math.round(h * (maxDim / w)); w = maxDim; }
+        else if(h > maxDim){ w = Math.round(w * (maxDim / h)); h = maxDim; }
+
+        const canvas = document.createElement('canvas');
+        canvas.width = w; canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, w, h);
+
+        const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.75);
+        addFormImage(compressedDataUrl);
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
+
+  event.target.value = ''; // allow re-choosing the same file(s) again later
+}
+
+function addSpecRow(key = '', value = ''){
+  const container = document.getElementById('specsContainer');
+  const row = document.createElement('div');
+  row.className = 'specs-row';
+  row.innerHTML = `
+    <input type="text" class="spec-key" placeholder="e.g. Material" value="${escapeAttr(key)}">
+    <input type="text" class="spec-value" placeholder="e.g. Rose Gold Plated" value="${escapeAttr(value)}">
+    <button type="button" class="rm-spec" onclick="this.parentElement.remove()">✕</button>
+  `;
+  container.appendChild(row);
+}
+
+function saveProduct(e){
+  e.preventDefault();
+
+  if(!bbDataReady){
+    alert('Data is still loading from the cloud. Please wait a second and try saving again.');
+    return false;
+  }
+
+  const id = document.getElementById('f_id').value;
+  const name = document.getElementById('f_name').value.trim();
+  let cat = document.getElementById('f_cat').value;
+  const badge = document.getElementById('f_badge').value.trim();
+  const price = parseFloat(document.getElementById('f_price').value) || 0;
+  const old = parseFloat(document.getElementById('f_old').value) || 0;
+  const images = formImages.slice();
+  const img = images[0] || '';
+  const desc = document.getElementById('f_desc').value.trim();
+
+  if(images.length === 0){
+    alert('Please add at least one product image.');
+    return false;
+  }
+
+  // If user chose "+ Add New Category", create it in categoryMeta first
+  if(cat === '__new__'){
+    const newCatName = document.getElementById('f_newCatName').value.trim();
+    if(!newCatName){
+      alert('Please enter a name for the new category.');
+      return false;
+    }
+    const newKey = slugifyCategory(newCatName);
+    const maxOrder = sortedCategoryEntries().reduce((max, [, m]) => Math.max(max, typeof m.order === 'number' ? m.order : 0), -1);
+    categoryMeta[newKey] = {
+      label: newCatName,
+      desc: `Explore our ${newCatName.toLowerCase()} collection.`,
+      img: img || 'https://images.unsplash.com/photo-1599643478518-a784e5dc4c8f?q=80&w=1200&auto=format&fit=crop',
+      order: maxOrder + 1
+    };
+    saveCategoryMeta();
+    cat = newKey;
+  }
+
+  const specs = {};
+  document.querySelectorAll('.specs-row').forEach(row => {
+    const k = row.querySelector('.spec-key').value.trim();
+    const v = row.querySelector('.spec-value').value.trim();
+    if(k) specs[k] = v;
+  });
+
+  if(id){
+    const idx = products.findIndex(x => x.id === parseInt(id));
+    if(idx > -1){
+      products[idx] = { ...products[idx], name, cat, badge, price, old, img, images, desc, specs };
+    }
+    showToast('Item updated');
+  } else {
+    const newId = products.length > 0 ? Math.max(...products.map(p => p.id)) + 1 : 1;
+    products.push({ id: newId, name, cat, badge, price, old, img, images, desc, specs });
+    showToast('Item added');
+  }
+
+  saveProducts();
+  renderGrid();
+  renderCategoryCodesList();
+  closeForm();
+  return false;
+}
+
+function deleteProduct(id){
+  const p = products.find(x => x.id === id);
+  if(!p) return;
+  if(!confirm(`Delete "${p.name}"? This cannot be undone.`)) return;
+  products = products.filter(x => x.id !== id);
+  saveProducts();
+  renderGrid();
+  showToast('Item deleted');
+}
+
+/* ============ TOAST ============ */
+let toastTimer;
+function showToast(msg){
+  const toast = document.getElementById('toast');
+  toast.textContent = msg;
+  toast.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => toast.classList.remove('show'), 2200);
+}
+
+/* ================================================================
+   SITE CONTENT MANAGEMENT (logo, hero, story, usp, reviews, insta,
+   newsletter, footer) — all editable, synced to Firestore.
+   ================================================================ */
+
+/* ---- Tabs ---- */
+function switchAdminTab(tab){
+  document.querySelectorAll('.admin-tab').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+  document.getElementById('panel-products').classList.toggle('active', tab === 'products');
+  document.getElementById('panel-content').classList.toggle('active', tab === 'content');
+  document.getElementById('panel-customers').classList.toggle('active', tab === 'customers');
+  document.getElementById('panel-orders').classList.toggle('active', tab === 'orders');
+  if(tab === 'orders' && !ordersLoaded){
+    loadOrders(false);
+  }
+  if(tab === 'content' && !siteContentLoaded){
+    loadSiteContent();
+  }
+  if(tab === 'customers' && !customersLoaded){
+    loadCustomers();
+  }
+}
+
+/* ---- Accordion ---- */
+function toggleSection(id){
+  const el = document.getElementById(id);
+  const wasOpen = el.classList.contains('open');
+  document.querySelectorAll('.content-section').forEach(s => s.classList.remove('open'));
+  if(!wasOpen) el.classList.add('open');
+}
+
+/* ---- Default site content (mirrors index.html defaults) ---- */
+const defaultSiteContent = {
+  logoText: "Blush&Bloom",
+  instagramUrl: "https://www.instagram.com/blushandblooms_30",
+  hero: {
+    slides: [
+      { eyebrow:"New Season Edit", titleHtml:"Jewellery for<br><em>every bloom</em><br>of you", desc:"Hand-finished necklaces, rings and bracelets crafted for the everyday, made to feel like an occasion.", img:"https://images.unsplash.com/photo-1599643478518-a784e5dc4c8f?q=80&w=1600&auto=format&fit=crop", btnPrimaryText:"Shop the Edit", btnPrimaryLink:"#shop", btnGhostText:"Our Story", btnGhostLink:"#story" },
+      { eyebrow:"Rose Gold Collection", titleHtml:"Necklaces that<br><em>catch the light</em>", desc:"Delicate chains and statement pendants, plated to last and layered to love.", img:"https://images.unsplash.com/photo-1515562141207-7a88fb7ce338?q=80&w=1600&auto=format&fit=crop", btnPrimaryText:"Explore Necklaces", btnPrimaryLink:"#shop", btnGhostText:"Our Story", btnGhostLink:"#story" },
+      { eyebrow:"Bridal &amp; Occasion", titleHtml:"Rings made<br>for <em>your moment</em>", desc:"From everyday stacks to statement solitaires — designed to be worn, not just kept.", img:"https://images.unsplash.com/photo-1611591437281-460bfbe1220a?q=80&w=1600&auto=format&fit=crop", btnPrimaryText:"Shop Rings", btnPrimaryLink:"#shop", btnGhostText:"Our Story", btnGhostLink:"#story" }
+    ]
+  },
+  story: {
+    eyebrow:"Our Story",
+    titleHtml:"Blush &amp; Bloom",
+    para1:"Blush & Bloom by Yashshvi was created with one simple dream — to make every gift feel special, meaningful, and unforgettable. Founded by Yashshvi, the brand is built with passion, creativity, and love for gifting. Every bouquet, jewellery piece, and hamper is thoughtfully curated to turn your special moments into beautiful memories.",
+    para2:"From birthdays and anniversaries to surprises and celebrations, we believe every gift should tell a story — which is why we offer beautifully crafted gifts that can be customized just the way you imagine. We proudly deliver happiness across India, ensuring quality, elegance, and customer satisfaction in every order. Our mission is simple: to create gifts that bring smiles, strengthen relationships, and make every occasion truly unforgettable.",
+    img:"https://images.unsplash.com/photo-1617038220319-276d3cfab638?q=80&w=1200&auto=format&fit=crop",
+    stat1Num:"500+", stat1Label:"Happy Customers",
+    stat2Num:"150+", stat2Label:"Unique Designs",
+    stat3Num:"4.9★", stat3Label:"Average Rating"
+  },
+  usp: [
+    { title:"Fast Dispatch", desc:"Orders shipped within 24–48 hours" },
+    { title:"Tarnish Resistant", desc:"Premium plating that holds its shine" },
+    { title:"Secure Packaging", desc:"Gift-ready boxes with every order" },
+    { title:"Easy Returns", desc:"7-day hassle-free exchange" }
+  ],
+  marquee: ["Satisfaction Guarantee", "Handcrafted With Love", "Premium Quality", "Tarnish Resistant Plating"],
+  reviews: {
+    eyebrow:"Kind Words",
+    titleHtml:"Loved by <em>our customers</em>",
+    items:[
+      { text:"The necklace looked even better in person. Packaging felt so premium, like opening a gift for myself.", name:"Riya Sharma", tag:"Verified Buyer" },
+      { text:"I've bought three rings now and the plating hasn't faded at all. Genuinely surprised at this price point.", name:"Ananya Verma", tag:"Verified Buyer" },
+      { text:"Ordered a bracelet for my sister's birthday — arrived early, beautifully packed, she hasn't taken it off since.", name:"Priya Nair", tag:"Verified Buyer" }
+    ]
+  },
+  faq: {
+    intro:"Everything you need to know before, during and after your order.",
+    items:[
+      { q:"How can I place an order?", a:"You can place your order through our Website, WhatsApp, or Instagram — choose whichever is most convenient for you." },
+      { q:"Do you deliver across India?", a:"Yes! We deliver all over India." },
+      { q:"How long does delivery take?", a:"Mumbai: 3–5 business days<br>Outside Mumbai: 7–10 business days" },
+      { q:"Do you offer same-day delivery?", a:"If the delivery location is nearby and the product is available, we'll do our best to arrange same-day or next-day delivery. However, it cannot be guaranteed." },
+      { q:"Are delivery charges included in the total order amount?", a:"Yes. Delivery charges are included in your total order amount — there's nothing extra to pay on delivery." },
+      { q:"Can I track my order?", a:"Yes. You can easily track your order from the My Account → My Orders section on our website." },
+      { q:"Can I include a gift message?", a:"Yes! You can add a personalized gift message with your order." },
+      { q:"Is Cash on Delivery (COD) available?", a:"No. We currently do not offer Cash on Delivery." },
+      { q:"What if my order arrives damaged?", a:"If your order is damaged during delivery, please refer to our Replacement Policy for eligibility and the replacement process." },
+      { q:"Can I contact you before placing an order?", a:"Absolutely! You can reach out to us through our Website, WhatsApp, or Instagram if you have any questions before ordering." },
+      { q:"Why choose Blush & Bloom?", a:"We focus on creating thoughtful gifts with attention to quality, presentation, and customer satisfaction — making every gift feel special." }
+    ]
+  },
+  policies: {
+    shipping: {
+      title:"Shipping Policy",
+      bodyHtml:"<p>At Blush &amp; Bloom, we strive to deliver your orders safely and as quickly as possible.</p><h4>Order Processing</h4><p>Once your order is confirmed, we begin preparing it for dispatch. You can track your order anytime by visiting <strong>My Account → My Orders</strong> on our website.</p><h4>Estimated Delivery Time</h4><ul><li><strong>Within Mumbai:</strong> Delivery is usually completed within 5 days.</li><li><strong>Outside Mumbai:</strong> Delivery may take up to 10 days, although many orders may arrive earlier depending on the courier service and location.</li></ul><h4>Delivery Charges</h4><p>Delivery charges are calculated and collected after your order is placed. This is because the final delivery cost depends on:</p><ul><li>The delivery distance.</li><li>The quantity, size, and weight of the products ordered.</li></ul><p>We follow this method to ensure that you pay only the actual delivery charges and not a fixed or higher shipping fee. Our goal is to keep your shipping cost as fair and affordable as possible.</p><h4>Order Tracking</h4><p>You can track your order at any time through <strong>My Account → My Orders</strong>.</p><h4>Delivery Delays</h4><p>Delivery timelines may be affected due to weather conditions, festivals, public holidays, courier service delays, or other unforeseen circumstances.</p><h4>Incorrect Address</h4><p>Please ensure that your shipping address and contact details are correct while placing your order. Any delay or additional charges caused by an incorrect or incomplete address will be the responsibility of the customer.</p>"
+    },
+    replacement: {
+      title:"Replacement Policy",
+      bodyHtml:"<p>At Blush &amp; Bloom, we carefully inspect every product before shipping. However, if you receive a damaged or defective item, we are happy to help.</p><h4>Replacement Policy</h4><ul><li>If the product delivered to you is found to be defective or damaged, we will provide a free replacement of the same product.</li><li>No refund will be issued for delivered orders. Instead, an eligible replacement will be sent at no extra cost.</li></ul><h4>Eligibility for Replacement</h4><p>To be eligible for a replacement:</p><ol><li>You must record a continuous unboxing video from the moment the package is opened.</li><li>The defect or damage must be clearly visible in the video.</li><li>Claims made without a valid unboxing video may not be accepted.</li></ol><p>Our team will review your claim, and if approved, the replacement product will be shipped to you free of charge.</p>"
+    },
+    extra:[]
+  },
+  instagram: {
+    handle:"@blushandblooms_30",
+    titleHtml:"Follow along on <em>Instagram</em>",
+    desc:"New drops, styling ideas and behind-the-scenes — first on the feed.",
+    btnText:"Follow Us"
+  },
+  newsletter: {
+    titleHtml:"Join the <em>inner circle</em>",
+    desc:"10% off your first order, plus early access to new collections.",
+    btnText:"Subscribe"
+  },
+  footer: {
+    tagline:"Fine jewellery for everyday wear — necklaces, rings and bracelets designed to feel like an occasion.",
+    email:"itzblushandbloom@gmail.com",
+    phone:"+91 98765 43210",
+    handle:"@blushandblooms_30",
+    whatsappUrl:"https://wa.me/919326015055",
+    copyright:"© 2026 Blush & Bloom. All rights reserved.",
+    tagline2:"Designed with care, for everyday shine."
+  }
+};
+
+let siteContent = JSON.parse(JSON.stringify(defaultSiteContent));
+let siteContentLoaded = false;
+
+async function loadSiteContent(){
+  // 1. instant local cache
+  try {
+    const saved = localStorage.getItem('bb_siteContent');
+    if(saved){
+      const parsed = JSON.parse(saved);
+      if(parsed && typeof parsed === 'object') siteContent = mergeWithDefaults(parsed);
+    }
+  } catch(e){}
+  populateContentForms();
+
+  // 2. cloud copy
+  try {
+    await waitForFirebase();
+    const { db, doc, getDoc } = window.bbFirestore;
+    const snap = await getDoc(doc(db, 'blushBloom', 'siteContent'));
+    if(snap.exists()){
+      const cloudData = snap.data().value;
+      if(cloudData && typeof cloudData === 'object'){
+        siteContent = mergeWithDefaults(cloudData);
+        localStorage.setItem('bb_siteContent', JSON.stringify(siteContent));
+      }
+    } else {
+      await persistSiteContent();
+    }
+  } catch(e){
+    console.warn('Could not reach cloud database for site content, using local cache.', e);
+  }
+  populateContentForms();
+  siteContentLoaded = true;
+}
+
+function mergeWithDefaults(data){
+  return {
+    logoText: data.logoText ?? defaultSiteContent.logoText,
+    instagramUrl: data.instagramUrl ?? defaultSiteContent.instagramUrl,
+    hero: { slides: (data.hero && Array.isArray(data.hero.slides) && data.hero.slides.length) ? data.hero.slides : defaultSiteContent.hero.slides },
+    story: { ...defaultSiteContent.story, ...(data.story || {}) },
+    usp: (Array.isArray(data.usp) && data.usp.length > 0) ? data.usp : defaultSiteContent.usp,
+    marquee: (Array.isArray(data.marquee) && data.marquee.length > 0) ? data.marquee : defaultSiteContent.marquee,
+    reviews: {
+      eyebrow: data.reviews?.eyebrow ?? defaultSiteContent.reviews.eyebrow,
+      titleHtml: data.reviews?.titleHtml ?? defaultSiteContent.reviews.titleHtml,
+      items: (data.reviews && Array.isArray(data.reviews.items) && data.reviews.items.length) ? data.reviews.items : defaultSiteContent.reviews.items
+    },
+    faq: {
+      intro: data.faq?.intro ?? defaultSiteContent.faq.intro,
+      items: (data.faq && Array.isArray(data.faq.items) && data.faq.items.length) ? data.faq.items : defaultSiteContent.faq.items
+    },
+    policies: {
+      shipping: { ...defaultSiteContent.policies.shipping, ...(data.policies?.shipping || {}) },
+      replacement: { ...defaultSiteContent.policies.replacement, ...(data.policies?.replacement || {}) },
+      extra: (data.policies && Array.isArray(data.policies.extra)) ? data.policies.extra : defaultSiteContent.policies.extra
+    },
+    instagram: { ...defaultSiteContent.instagram, ...(data.instagram || {}) },
+    newsletter: { ...defaultSiteContent.newsletter, ...(data.newsletter || {}) },
+    footer: { ...defaultSiteContent.footer, ...(data.footer || {}) }
+  };
+}
+
+async function persistSiteContent(){
+  localStorage.setItem('bb_siteContent', JSON.stringify(siteContent));
+  pendingSaveCount++;
+  try {
+    await waitForFirebase();
+    const { db, doc, setDoc } = window.bbFirestore;
+    await setDoc(doc(db, 'blushBloom', 'siteContent'), { value: siteContent });
+  } catch(e){
+    console.warn('Could not save site content to cloud. Saved locally only.', e);
+    showToast('⚠️ Saved locally — cloud sync failed');
+  } finally {
+    pendingSaveCount--;
+  }
+}
+let pendingSaveCount = 0;
+window.addEventListener('beforeunload', (e) => {
+  if(pendingSaveCount > 0){
+    e.preventDefault();
+    e.returnValue = '';
+  }
+});
+
+/* ---- Populate all forms from siteContent ---- */
+function populateContentForms(){
+  // Each section is wrapped in try/catch so a failure in one section
+  // (e.g. USP editor) can never blank out later sections (e.g. Footer).
+  try {
+    document.getElementById('sc_logoText').value = siteContent.logoText || '';
+    document.getElementById('sc_instagramUrl').value = siteContent.instagramUrl || '';
+    renderHeroSlideEditor();
+  } catch(e){ console.error('populateContentForms: logo/hero failed', e); }
+
+  try {
+    const st = siteContent.story;
+    document.getElementById('sc_storyEyebrow').value = st.eyebrow || '';
+    document.getElementById('sc_storyTitle').value = st.titleHtml || '';
+    document.getElementById('sc_storyPara1').value = st.para1 || '';
+    document.getElementById('sc_storyPara2').value = st.para2 || '';
+    document.getElementById('sc_stat1Num').value = st.stat1Num || '';
+    document.getElementById('sc_stat1Label').value = st.stat1Label || '';
+    document.getElementById('sc_stat2Num').value = st.stat2Num || '';
+    document.getElementById('sc_stat2Label').value = st.stat2Label || '';
+    document.getElementById('sc_stat3Num').value = st.stat3Num || '';
+    document.getElementById('sc_stat3Label').value = st.stat3Label || '';
+  } catch(e){ console.error('populateContentForms: story failed', e); }
+
+  try {
+    renderUspEditor();
+  } catch(e){ console.error('populateContentForms: usp failed', e); }
+
+  try {
+    renderMarqueeEditor();
+  } catch(e){ console.error('populateContentForms: marquee failed', e); }
+
+  try {
+    document.getElementById('sc_reviewsEyebrow').value = siteContent.reviews.eyebrow || '';
+    document.getElementById('sc_reviewsTitle').value = siteContent.reviews.titleHtml || '';
+    renderReviewsEditor();
+  } catch(e){ console.error('populateContentForms: reviews failed', e); }
+
+  try {
+    document.getElementById('sc_faqIntro').value = siteContent.faq.intro || '';
+    renderFaqEditor();
+  } catch(e){ console.error('populateContentForms: faq failed', e); }
+
+  try {
+    document.getElementById('sc_shippingTitle').value = siteContent.policies.shipping.title || '';
+    document.getElementById('sc_shippingBody').value = siteContent.policies.shipping.bodyHtml || '';
+    document.getElementById('sc_replacementTitle').value = siteContent.policies.replacement.title || '';
+    document.getElementById('sc_replacementBody').value = siteContent.policies.replacement.bodyHtml || '';
+    renderExtraPoliciesEditor();
+  } catch(e){ console.error('populateContentForms: policies failed', e); }
+
+  try {
+    document.getElementById('sc_instaHandle').value = siteContent.instagram.handle || '';
+    document.getElementById('sc_instaTitle').value = siteContent.instagram.titleHtml || '';
+    document.getElementById('sc_instaDesc').value = siteContent.instagram.desc || '';
+    document.getElementById('sc_instaBtnText').value = siteContent.instagram.btnText || '';
+  } catch(e){ console.error('populateContentForms: instagram failed', e); }
+
+  try {
+    document.getElementById('sc_newsletterTitle').value = siteContent.newsletter.titleHtml || '';
+    document.getElementById('sc_newsletterDesc').value = siteContent.newsletter.desc || '';
+    document.getElementById('sc_newsletterBtnText').value = siteContent.newsletter.btnText || '';
+  } catch(e){ console.error('populateContentForms: newsletter failed', e); }
+
+  try {
+    const f = siteContent.footer;
+    document.getElementById('sc_footerTagline').value = f.tagline || '';
+    document.getElementById('sc_footerEmail').value = f.email || '';
+    document.getElementById('sc_footerPhone').value = f.phone || '';
+    document.getElementById('sc_footerWa').value = (f.whatsappUrl || '').replace('https://wa.me/','').replace(/[^0-9]/g,'');
+    document.getElementById('sc_footerCopyright').value = f.copyright || '';
+    document.getElementById('sc_footerTagline2').value = f.tagline2 || '';
+  } catch(e){ console.error('populateContentForms: footer failed', e); }
+}
+
+/* ---- Generic image upload helper (compress + set into a target input) ---- */
+function handleGenericImageUpload(event, targetInputId){
+  const file = event.target.files[0];
+  if(!file) return;
+  if(!file.type.startsWith('image/')){ alert('Please choose an image file.'); return; }
+  const reader = new FileReader();
+  reader.onload = function(e){
+    const img = new Image();
+    img.onload = function(){
+      const maxDim = 1200;
+      let w = img.width, h = img.height;
+      if(w > h && w > maxDim){ h = Math.round(h * (maxDim / w)); w = maxDim; }
+      else if(h > maxDim){ w = Math.round(w * (maxDim / h)); h = maxDim; }
+      const canvas = document.createElement('canvas');
+      canvas.width = w; canvas.height = h;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, w, h);
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.78);
+      document.getElementById(targetInputId).value = dataUrl;
+      previewGenericImg(targetInputId);
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+function previewGenericImg(inputId){
+  const input = document.getElementById(inputId);
+  const preview = document.getElementById(inputId + '_preview');
+  if(!input || !preview) return;
+  if(input.value){ preview.src = input.value; preview.style.display = 'block'; }
+  else { preview.style.display = 'none'; }
+}
+
+/* ---- Logo & Social ---- */
+async function saveLogoSocial(){
+  siteContent.logoText = document.getElementById('sc_logoText').value.trim() || 'Blush&Bloom';
+  siteContent.instagramUrl = document.getElementById('sc_instagramUrl').value.trim();
+  await persistSiteContent();
+  showToast('Logo & social links saved');
+}
+
+/* ---- Hero Slides ---- */
+function renderHeroSlideEditor(){
+  const wrap = document.getElementById('heroSlidesEditor');
+  wrap.innerHTML = siteContent.hero.slides.map((s, i) => `
+    <div class="hero-slide-card" data-slide-idx="${i}">
+      <div class="slide-num">
+        <span>Slide ${i + 1}</span>
+        <button type="button" class="danger-small-btn" onclick="removeHeroSlideRow(${i})">Remove</button>
+      </div>
+      <div class="form-row">
+        <label>Image</label>
+        <div style="display:flex; gap:8px; margin-bottom:8px;">
+          <button type="button" class="add-spec-btn" style="flex:1; margin-bottom:0; text-align:center;" onclick="document.getElementById('hs_imgFile_${i}').click()"><svg fill="none" viewBox="0 0 24 24" stroke-width="1.6" style="width:15px;height:15px;stroke:currentColor;margin-right:6px;vertical-align:-3px;"><path d="M4 8h3l1.5-2h7L17 8h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/><circle cx="12" cy="13" r="3.3"/></svg>Choose from Gallery</button>
+        </div>
+        <input type="file" id="hs_imgFile_${i}" accept="image/*" style="display:none;" onchange="handleGenericImageUpload(event,'hs_img_${i}')">
+        <input type="text" id="hs_img_${i}" value="${escapeAttr(s.img || '')}" placeholder="Image URL" oninput="previewGenericImg('hs_img_${i}')">
+        <img class="mini-preview" id="hs_img_${i}_preview" src="${escapeAttr(s.img || '')}" style="${s.img ? 'display:block;' : ''}">
+      </div>
+      <div class="form-grid-2">
+        <div class="form-row"><label>Eyebrow</label><input type="text" id="hs_eyebrow_${i}" value="${escapeAttr(s.eyebrow || '')}"></div>
+        <div class="form-row"><label>Title (HTML allowed)</label><input type="text" id="hs_title_${i}" value="${escapeAttr(s.titleHtml || '')}"></div>
+      </div>
+      <div class="form-row"><label>Description</label><textarea id="hs_desc_${i}">${escapeHtml(s.desc || '')}</textarea></div>
+      <div class="form-grid-2">
+        <div class="form-row"><label>Primary Button Text</label><input type="text" id="hs_btnPrimaryText_${i}" value="${escapeAttr(s.btnPrimaryText || '')}"></div>
+        <div class="form-row"><label>Primary Button Link / Code (e.g. PROD-3, CAT-rings, SEC-story, OFFER)</label><input type="text" id="hs_btnPrimaryLink_${i}" value="${escapeAttr(s.btnPrimaryLink || '#shop')}" placeholder="#shop or PROD-3 or CAT-rings"></div>
+      </div>
+      <div class="form-grid-2">
+        <div class="form-row"><label>Ghost Button Text</label><input type="text" id="hs_btnGhostText_${i}" value="${escapeAttr(s.btnGhostText || '')}"></div>
+        <div class="form-row"><label>Ghost Button Link / Code (e.g. PROD-3, CAT-rings, SEC-story, OFFER)</label><input type="text" id="hs_btnGhostLink_${i}" value="${escapeAttr(s.btnGhostLink || '#story')}" placeholder="#story or SEC-story"></div>
+      </div>
+    </div>
+  `).join('');
+}
+function addHeroSlideRow(){
+  siteContent.hero.slides.push({ eyebrow:"", titleHtml:"", desc:"", img:"", btnPrimaryText:"Shop Now", btnPrimaryLink:"#shop", btnGhostText:"Our Story", btnGhostLink:"#story" });
+  renderHeroSlideEditor();
+}
+function removeHeroSlideRow(i){
+  if(siteContent.hero.slides.length <= 1){ alert('You need at least one slide.'); return; }
+  siteContent.hero.slides.splice(i, 1);
+  renderHeroSlideEditor();
+}
+async function saveHeroSlides(){
+  const cards = document.querySelectorAll('.hero-slide-card');
+  const slides = [];
+  cards.forEach(card => {
+    const i = card.dataset.slideIdx;
+    slides.push({
+      eyebrow: document.getElementById(`hs_eyebrow_${i}`).value.trim(),
+      titleHtml: document.getElementById(`hs_title_${i}`).value.trim(),
+      desc: document.getElementById(`hs_desc_${i}`).value.trim(),
+      img: document.getElementById(`hs_img_${i}`).value.trim(),
+      btnPrimaryText: document.getElementById(`hs_btnPrimaryText_${i}`).value.trim() || 'Shop Now',
+      btnPrimaryLink: document.getElementById(`hs_btnPrimaryLink_${i}`).value.trim() || '#shop',
+      btnGhostText: document.getElementById(`hs_btnGhostText_${i}`).value.trim(),
+      btnGhostLink: document.getElementById(`hs_btnGhostLink_${i}`).value.trim() || '#story'
+    });
+  });
+  if(slides.length === 0){ alert('Add at least one slide.'); return; }
+  siteContent.hero.slides = slides;
+  await persistSiteContent();
+  showToast('Hero slider saved');
+}
+
+/* ---- Our Story ---- */
+async function saveStory(){
+  siteContent.story = {
+    eyebrow: document.getElementById('sc_storyEyebrow').value.trim(),
+    titleHtml: document.getElementById('sc_storyTitle').value.trim(),
+    para1: document.getElementById('sc_storyPara1').value.trim(),
+    para2: document.getElementById('sc_storyPara2').value.trim(),
+    stat1Num: document.getElementById('sc_stat1Num').value.trim(),
+    stat1Label: document.getElementById('sc_stat1Label').value.trim(),
+    stat2Num: document.getElementById('sc_stat2Num').value.trim(),
+    stat2Label: document.getElementById('sc_stat2Label').value.trim(),
+    stat3Num: document.getElementById('sc_stat3Num').value.trim(),
+    stat3Label: document.getElementById('sc_stat3Label').value.trim()
+  };
+  await persistSiteContent();
+  showToast('Our Story section saved');
+}
+
+/* ---- USP Strip ---- */
+function renderUspEditor(){
+  const wrap = document.getElementById('uspEditor');
+  wrap.innerHTML = siteContent.usp.map((u, i) => `
+    <div class="usp-card" style="position:relative;">
+      <button type="button" onclick="removeUspFeature(${i})" title="Remove feature"
+        style="position:absolute;top:10px;right:10px;width:26px;height:26px;border-radius:50%;
+        background:var(--ivory-deep);color:var(--danger);font-size:14px;line-height:1;
+        display:flex;align-items:center;justify-content:center;">✕</button>
+      <div class="form-grid-2">
+        <div class="form-row"><label>Feature ${i+1} Title</label><input type="text" id="usp_title_${i}" value="${escapeAttr(u.title || '')}"></div>
+        <div class="form-row"><label>Feature ${i+1} Description</label><input type="text" id="usp_desc_${i}" value="${escapeAttr(u.desc || '')}"></div>
+      </div>
+    </div>
+  `).join('') + `
+    <button type="button" onclick="addUspFeature()"
+      style="width:100%;padding:12px;border:1.5px dashed var(--border);border-radius:10px;
+      background:transparent;color:var(--rose);font-weight:500;margin-bottom:12px;">+ Add Feature</button>
+  `;
+  const heading = document.querySelector('#sec-usp h3');
+  if(heading) heading.textContent = `USP Strip (${siteContent.usp.length} features)`;
+}
+function syncUspFromInputs(){
+  const usp = [];
+  siteContent.usp.forEach((_, i) => {
+    const titleEl = document.getElementById(`usp_title_${i}`);
+    const descEl = document.getElementById(`usp_desc_${i}`);
+    if(titleEl && descEl){
+      usp.push({ title: titleEl.value.trim(), desc: descEl.value.trim() });
+    }
+  });
+  siteContent.usp = usp;
+}
+function addUspFeature(){
+  syncUspFromInputs();
+  siteContent.usp.push({ title:'', desc:'' });
+  renderUspEditor();
+}
+function removeUspFeature(i){
+  syncUspFromInputs();
+  if(siteContent.usp.length <= 1){ showToast('At least 1 feature required'); return; }
+  siteContent.usp.splice(i, 1);
+  renderUspEditor();
+}
+async function saveUsp(){
+  syncUspFromInputs();
+  await persistSiteContent();
+  showToast('USP strip saved');
+}
+
+/* ---- Marquee Strip ---- */
+function renderMarqueeEditor(){
+  const wrap = document.getElementById('marqueeEditor');
+  wrap.innerHTML = siteContent.marquee.map((m, i) => `
+    <div class="form-row" style="display:flex;align-items:center;gap:8px;">
+      <input type="text" id="marquee_item_${i}" value="${escapeAttr(m || '')}" style="flex:1;">
+      <button type="button" onclick="removeMarqueeItem(${i})" title="Remove"
+        style="width:30px;height:30px;flex-shrink:0;border-radius:50%;
+        background:var(--ivory-deep);color:var(--danger);font-size:14px;line-height:1;
+        display:flex;align-items:center;justify-content:center;">✕</button>
+    </div>
+  `).join('') + `
+    <button type="button" onclick="addMarqueeItem()"
+      style="width:100%;padding:12px;border:1.5px dashed var(--border);border-radius:10px;
+      background:transparent;color:var(--rose);font-weight:500;margin-top:8px;">+ Add Item</button>
+  `;
+  const heading = document.querySelector('#sec-marquee h3');
+  if(heading) heading.textContent = `Marquee Strip (${siteContent.marquee.length} items)`;
+}
+function syncMarqueeFromInputs(){
+  const items = [];
+  siteContent.marquee.forEach((_, i) => {
+    const el = document.getElementById(`marquee_item_${i}`);
+    if(el) items.push(el.value.trim());
+  });
+  siteContent.marquee = items;
+}
+function addMarqueeItem(){
+  syncMarqueeFromInputs();
+  siteContent.marquee.push('');
+  renderMarqueeEditor();
+}
+function removeMarqueeItem(i){
+  syncMarqueeFromInputs();
+  if(siteContent.marquee.length <= 1){ showToast('At least 1 item required'); return; }
+  siteContent.marquee.splice(i, 1);
+  renderMarqueeEditor();
+}
+async function saveMarquee(){
+  syncMarqueeFromInputs();
+  const cleaned = siteContent.marquee.filter(m => m.trim());
+  if(cleaned.length === 0){ alert('Add at least one marquee item.'); return; }
+  siteContent.marquee = cleaned;
+  await persistSiteContent();
+  renderMarqueeEditor();
+  showToast('Marquee strip saved');
+}
+
+/* ---- Testimonials ---- */
+function renderReviewsEditor(){
+  const wrap = document.getElementById('reviewsEditor');
+  wrap.innerHTML = siteContent.reviews.items.map((t, i) => `
+    <div class="review-card" data-review-idx="${i}">
+      <div class="slide-num">
+        <span>Testimonial ${i + 1}</span>
+        <button type="button" class="danger-small-btn" onclick="removeReviewRow(${i})">Remove</button>
+      </div>
+      <div class="form-row"><label>Review Text</label><textarea id="rv_text_${i}">${escapeHtml(t.text || '')}</textarea></div>
+      <div class="form-grid-2">
+        <div class="form-row"><label>Customer Name</label><input type="text" id="rv_name_${i}" value="${escapeAttr(t.name || '')}"></div>
+        <div class="form-row"><label>Tag (e.g. Verified Buyer)</label><input type="text" id="rv_tag_${i}" value="${escapeAttr(t.tag || 'Verified Buyer')}"></div>
+      </div>
+    </div>
+  `).join('');
+}
+function addReviewRow(){
+  siteContent.reviews.items.push({ text:"", name:"", tag:"Verified Buyer" });
+  renderReviewsEditor();
+}
+function removeReviewRow(i){
+  if(siteContent.reviews.items.length <= 1){ alert('You need at least one testimonial.'); return; }
+  siteContent.reviews.items.splice(i, 1);
+  renderReviewsEditor();
+}
+async function saveReviews(){
+  const cards = document.querySelectorAll('.review-card');
+  const items = [];
+  cards.forEach(card => {
+    const i = card.dataset.reviewIdx;
+    items.push({
+      text: document.getElementById(`rv_text_${i}`).value.trim(),
+      name: document.getElementById(`rv_name_${i}`).value.trim(),
+      tag: document.getElementById(`rv_tag_${i}`).value.trim() || 'Verified Buyer'
+    });
+  });
+  if(items.length === 0){ alert('Add at least one testimonial.'); return; }
+  siteContent.reviews.eyebrow = document.getElementById('sc_reviewsEyebrow').value.trim();
+  siteContent.reviews.titleHtml = document.getElementById('sc_reviewsTitle').value.trim();
+  siteContent.reviews.items = items;
+  await persistSiteContent();
+  showToast('Testimonials saved');
+}
+
+/* ---- FAQ ---- */
+function renderFaqEditor(){
+  const wrap = document.getElementById('faqEditor');
+  wrap.innerHTML = siteContent.faq.items.map((f, i) => `
+    <div class="review-card" data-faq-idx="${i}">
+      <div class="slide-num">
+        <span>Question ${i + 1}</span>
+        <span style="display:flex;gap:6px;">
+          <button type="button" class="danger-small-btn" style="background:none;color:var(--ink,#333);border:1px solid var(--border,#ddd);" onclick="moveFaqRow(${i}, -1)" ${i === 0 ? 'disabled' : ''} title="Move up">↑</button>
+          <button type="button" class="danger-small-btn" style="background:none;color:var(--ink,#333);border:1px solid var(--border,#ddd);" onclick="moveFaqRow(${i}, 1)" ${i === siteContent.faq.items.length - 1 ? 'disabled' : ''} title="Move down">↓</button>
+          <button type="button" class="danger-small-btn" onclick="removeFaqRow(${i})">Remove</button>
+        </span>
+      </div>
+      <div class="form-row"><label>Question</label><input type="text" id="faq_q_${i}" value="${escapeAttr(f.q || '')}"></div>
+      <div class="form-row"><label>Answer (basic HTML like &lt;br&gt; allowed)</label><textarea id="faq_a_${i}">${escapeHtml(f.a || '')}</textarea></div>
+    </div>
+  `).join('');
+}
+function addFaqRow(){
+  siteContent.faq.items.push({ q:"", a:"" });
+  renderFaqEditor();
+}
+function removeFaqRow(i){
+  if(siteContent.faq.items.length <= 1){ alert('You need at least one FAQ.'); return; }
+  if(!confirm('Remove this question?')) return;
+  syncFaqFromForm();
+  siteContent.faq.items.splice(i, 1);
+  renderFaqEditor();
+}
+function moveFaqRow(i, dir){
+  syncFaqFromForm();
+  const j = i + dir;
+  if(j < 0 || j >= siteContent.faq.items.length) return;
+  const tmp = siteContent.faq.items[i];
+  siteContent.faq.items[i] = siteContent.faq.items[j];
+  siteContent.faq.items[j] = tmp;
+  renderFaqEditor();
+}
+function syncFaqFromForm(){
+  const cards = document.querySelectorAll('#faqEditor .review-card');
+  const items = [];
+  cards.forEach(card => {
+    const i = card.dataset.faqIdx;
+    const qEl = document.getElementById(`faq_q_${i}`);
+    const aEl = document.getElementById(`faq_a_${i}`);
+    items.push({
+      q: qEl ? qEl.value.trim() : '',
+      a: aEl ? aEl.value.trim() : ''
+    });
+  });
+  if(items.length) siteContent.faq.items = items;
+}
+async function saveFaq(){
+  syncFaqFromForm();
+  const cleaned = siteContent.faq.items.filter(f => f.q.trim() || f.a.trim());
+  if(cleaned.length === 0){ alert('Add at least one FAQ.'); return; }
+  siteContent.faq.intro = document.getElementById('sc_faqIntro').value.trim();
+  siteContent.faq.items = cleaned;
+  await persistSiteContent();
+  renderFaqEditor();
+  showToast('FAQs saved');
+}
+
+/* ---- Shipping Policy ---- */
+async function saveShippingPolicy(){
+  const title = document.getElementById('sc_shippingTitle').value.trim();
+  const body = document.getElementById('sc_shippingBody').value.trim();
+  if(!title){ alert('Please give the policy a title.'); return; }
+  if(!body){ alert('Please add some content for the policy.'); return; }
+  siteContent.policies.shipping = { title, bodyHtml: body };
+  await persistSiteContent();
+  showToast('Shipping Policy saved');
+}
+
+/* ---- Replacement Policy ---- */
+async function saveReplacementPolicy(){
+  const title = document.getElementById('sc_replacementTitle').value.trim();
+  const body = document.getElementById('sc_replacementBody').value.trim();
+  if(!title){ alert('Please give the policy a title.'); return; }
+  if(!body){ alert('Please add some content for the policy.'); return; }
+  siteContent.policies.replacement = { title, bodyHtml: body };
+  await persistSiteContent();
+  showToast('Replacement Policy saved');
+}
+
+/* ---- Custom / Extra Policies ---- */
+function renderExtraPoliciesEditor(){
+  const wrap = document.getElementById('extraPoliciesEditor');
+  if(!wrap) return;
+  const items = siteContent.policies.extra || [];
+  if(items.length === 0){
+    wrap.innerHTML = '<p style="color:var(--muted,#888);font-size:13px;margin-bottom:12px;">No extra policies yet. Use "+ Add New Policy" below to create one (e.g. Privacy Policy, Terms of Service).</p>';
+    return;
+  }
+  wrap.innerHTML = items.map((p, i) => `
+    <div class="review-card" data-policy-idx="${i}">
+      <div class="slide-num">
+        <span>${escapeHtml(p.title || 'Untitled Policy')}</span>
+        <button type="button" class="danger-small-btn" onclick="removeExtraPolicy(${i})">Remove</button>
+      </div>
+      <div class="form-row"><label>Policy Title (shown in footer &amp; popup)</label><input type="text" id="xp_title_${i}" value="${escapeAttr(p.title || '')}" placeholder="e.g. Privacy Policy"></div>
+      <div class="form-row"><label>Content (HTML)</label><textarea id="xp_body_${i}" style="min-height:160px;font-family:monospace;font-size:12.5px;">${escapeHtml(p.bodyHtml || '')}</textarea></div>
+      <div class="section-save-row"><button onclick="saveExtraPolicy(${i})">Save This Policy</button></div>
+    </div>
+  `).join('');
+}
+async function addExtraPolicy(){
+  siteContent.policies.extra = siteContent.policies.extra || [];
+  siteContent.policies.extra.push({ title:"New Policy", bodyHtml:"<p>Write your policy content here.</p>" });
+  await persistSiteContent();
+  renderExtraPoliciesEditor();
+  showToast('New policy added — edit and save it below');
+}
+async function removeExtraPolicy(i){
+  const p = siteContent.policies.extra[i];
+  if(!confirm(`Remove "${p?.title || 'this policy'}"? This cannot be undone.`)) return;
+  siteContent.policies.extra.splice(i, 1);
+  await persistSiteContent();
+  renderExtraPoliciesEditor();
+  showToast('Policy removed');
+}
+async function saveExtraPolicy(i){
+  const titleEl = document.getElementById(`xp_title_${i}`);
+  const bodyEl = document.getElementById(`xp_body_${i}`);
+  const title = titleEl ? titleEl.value.trim() : '';
+  const body = bodyEl ? bodyEl.value.trim() : '';
+  if(!title){ alert('Please give the policy a title.'); return; }
+  if(!body){ alert('Please add some content for the policy.'); return; }
+  siteContent.policies.extra[i] = { title, bodyHtml: body };
+  await persistSiteContent();
+  renderExtraPoliciesEditor();
+  showToast('Policy saved');
+}
+
+/* ---- Customer Submitted Reviews (from Firestore 'reviews' collection) ---- */
+function renderStarsHtml(rating){
+  const r = parseInt(rating, 10) || 0;
+  let out = '';
+  for(let i = 1; i <= 5; i++){
+    out += `<span style="color:${i <= r ? '#B76E79' : '#ddd'};font-size:15px;">★</span>`;
+  }
+  return out;
+}
+function formatReviewDate(createdAt){
+  try {
+    if(createdAt && typeof createdAt.seconds === 'number'){
+      return new Date(createdAt.seconds * 1000).toLocaleDateString();
+    }
+    if(createdAt){
+      const d = new Date(createdAt);
+      if(!isNaN(d.getTime())) return d.toLocaleDateString();
+    }
+  } catch(e){}
+  return '';
+}
+async function loadCustomerSubmittedReviews(){
+  const listEl = document.getElementById('customerReviewsList');
+  if(!listEl) return;
+  listEl.innerHTML = 'Loading...';
+
+  let items = [];
+  try {
+    if(!window.bbFirebaseReady){
+      await new Promise(resolve => document.addEventListener('bbFirebaseReady', resolve, { once: true }));
+    }
+    const { db, collection, getDocs } = window.bbFirestore;
+    const snap = await getDocs(collection(db, 'reviews'));
+    snap.forEach(docSnap => items.push({ id: docSnap.id, ...docSnap.data() }));
+  } catch(err){
+    console.warn('Could not load customer reviews', err);
+    listEl.innerHTML = '<p style="color:#c0392b;">Could not load reviews from cloud.</p>';
+    return;
+  }
+
+  items.sort((a, b) => {
+    const ta = a.createdAt && a.createdAt.seconds ? a.createdAt.seconds : (a.createdAt ? Date.parse(a.createdAt) : 0);
+    const tb = b.createdAt && b.createdAt.seconds ? b.createdAt.seconds : (b.createdAt ? Date.parse(b.createdAt) : 0);
+    return tb - ta;
+  });
+
+  if(items.length === 0){
+    listEl.innerHTML = '<p style="color:var(--muted,#888);">No customer reviews yet.</p>';
+    return;
+  }
+
+  listEl.innerHTML = items.map(r => `
+    <div class="review-card" data-review-id="${escapeAttr(r.id)}">
+      <div class="spec-row-head">
+        <span>${renderStarsHtml(r.rating)} &nbsp; <strong>${escapeHtml(r.name || 'Anonymous')}</strong></span>
+        <button type="button" class="danger-small-btn" onclick="deleteCustomerReview('${r.id}')">Remove</button>
+      </div>
+      <div style="font-size:14px;color:var(--ink,#333);margin-top:6px;">${escapeHtml(r.text || '')}</div>
+      <div style="font-size:12px;color:var(--muted,#999);margin-top:6px;">${formatReviewDate(r.createdAt)}</div>
+    </div>
+  `).join('');
+}
+async function deleteCustomerReview(id){
+  if(!confirm('Remove this customer review? This cannot be undone.')) return;
+  try {
+    const { db, doc, deleteDoc } = window.bbFirestore;
+    await deleteDoc(doc(db, 'reviews', id));
+    showToast('Review removed');
+    loadCustomerSubmittedReviews();
+  } catch(err){
+    console.warn('Could not delete review', err);
+    alert('Could not remove review. Please try again.');
+  }
+}
+document.addEventListener('DOMContentLoaded', () => {
+  loadCustomerSubmittedReviews();
+});
+
+/* ---- Instagram CTA ---- */
+async function saveInstaCta(){
+  siteContent.instagram = {
+    handle: document.getElementById('sc_instaHandle').value.trim(),
+    titleHtml: document.getElementById('sc_instaTitle').value.trim(),
+    desc: document.getElementById('sc_instaDesc').value.trim(),
+    btnText: document.getElementById('sc_instaBtnText').value.trim() || 'Follow Us'
+  };
+  await persistSiteContent();
+  showToast('Instagram section saved');
+}
+
+/* ---- Newsletter ---- */
+async function saveNewsletter(){
+  siteContent.newsletter = {
+    titleHtml: document.getElementById('sc_newsletterTitle').value.trim(),
+    desc: document.getElementById('sc_newsletterDesc').value.trim(),
+    btnText: document.getElementById('sc_newsletterBtnText').value.trim() || 'Subscribe'
+  };
+  await persistSiteContent();
+  showToast('Newsletter section saved');
+}
+
+/* ---- Footer ---- */
+async function saveFooter(){
+  try {
+    const waRaw = document.getElementById('sc_footerWa').value.trim();
+    const waDigitsOnly = waRaw.replace(/[^0-9]/g,'');
+    const waUrl = waRaw.startsWith('http') ? waRaw : (waDigitsOnly ? `https://wa.me/${waDigitsOnly}` : '#');
+
+    siteContent.footer = {
+      tagline: document.getElementById('sc_footerTagline').value.trim(),
+      email: document.getElementById('sc_footerEmail').value.trim(),
+      phone: document.getElementById('sc_footerPhone').value.trim(),
+      handle: siteContent.footer.handle || document.getElementById('sc_instaHandle').value.trim(),
+      whatsappUrl: waUrl,
+      copyright: document.getElementById('sc_footerCopyright').value.trim(),
+      tagline2: document.getElementById('sc_footerTagline2').value.trim()
+    };
+    await persistSiteContent();
+    showToast('Footer saved');
+  } catch(e){
+    console.error('saveFooter failed', e);
+    showToast('⚠️ Could not save footer — check console');
+  }
+}
+
+/* ---- Customers tab ---- */
+let customersLoaded = false;
+let allCustomers = [];
+
+async function loadCustomers(isRefresh){
+  const listEl = document.getElementById('custList');
+  const countEl = document.getElementById('custCount');
+  if(!isRefresh){
+    listEl.innerHTML = '';
+  }
+  countEl.textContent = 'Loading…';
+
+  try {
+    if(!window.bbFirebaseReady){
+      await new Promise(resolve => document.addEventListener('bbFirebaseReady', resolve, { once: true }));
+    }
+    const { db, collection, getDocs } = window.bbFirestore;
+    const snap = await getDocs(collection(db, 'customers'));
+
+    allCustomers = [];
+    snap.forEach(docSnap => {
+      allCustomers.push({ uid: docSnap.id, ...docSnap.data() });
+    });
+
+    // Most recently active first, where we have a timestamp
+    allCustomers.sort((a, b) => {
+      const aT = a.updatedAt && a.updatedAt.seconds ? a.updatedAt.seconds : 0;
+      const bT = b.updatedAt && b.updatedAt.seconds ? b.updatedAt.seconds : 0;
+      return bT - aT;
+    });
+
+    customersLoaded = true;
+    renderCustomerList();
+    if(isRefresh) showToast('Customer list refreshed');
+  } catch(err){
+    console.warn('Could not load customers', err);
+    countEl.textContent = 'Could not load customers.';
+    listEl.innerHTML = '<div class="empty-state">Could not reach the cloud database. Please check your connection and refresh.</div>';
+  }
+}
+
+function fmtCustDate(ts){
+  if(!ts || !ts.seconds) return '';
+  return new Date(ts.seconds * 1000).toLocaleString('en-IN', { dateStyle:'medium', timeStyle:'short' });
+}
+
+function renderCustomerList(){
+  const listEl = document.getElementById('custList');
+  const countEl = document.getElementById('custCount');
+  const q = (document.getElementById('custSearch').value || '').trim().toLowerCase();
+
+  const filtered = !q ? allCustomers : allCustomers.filter(c => {
+    return (c.name || '').toLowerCase().includes(q)
+      || (c.email || '').toLowerCase().includes(q)
+      || (c.phone || '').toLowerCase().includes(q)
+      || (c.uid || '').toLowerCase().includes(q);
+  });
+
+  countEl.textContent = `${filtered.length} customer${filtered.length === 1 ? '' : 's'}${q ? ` (of ${allCustomers.length})` : ''}`;
+
+  if(filtered.length === 0){
+    listEl.innerHTML = '<div class="empty-state">No customers found yet. They will show up here as soon as someone logs in and saves their details on the website.</div>';
+    return;
+  }
+
+  listEl.innerHTML = filtered.map(c => `
+    <div class="cust-card">
+      <div class="cust-card-top">
+        <div>
+          <div class="cust-name ${c.name ? '' : 'empty'}">${c.name || 'Name not provided'}</div>
+          <div class="cust-email">📱 ${c.phone || c.uid || '—'}</div>
+        </div>
+      </div>
+      <div class="cust-grid">
+        <div><b>Email:</b> ${c.email || '—'}</div>
+        <div><b>City:</b> ${c.city || '—'}</div>
+        <div><b>Pincode:</b> ${c.pincode || '—'}</div>
+        <div style="grid-column:1/-1;"><b>Address:</b> ${c.address || '—'}</div>
+      </div>
+      <div class="cust-meta">Last updated: ${fmtCustDate(c.updatedAt) || '—'}</div>
+      ${custFavHtml(c)}
+      ${custBagHtml(c)}
+      <div class="ord-actions">
+        <button class="danger" onclick="deleteCustomerAccount('${c.uid}')">🗑️ Delete Account Permanently</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+function custProductLabel(id){
+  const p = products.find(x => x.id === id);
+  return p ? p.name : `Product #${id}`;
+}
+
+function custFavHtml(c){
+  const favs = Array.isArray(c.favourites) ? c.favourites : [];
+  if(favs.length === 0){
+    return `<div class="cust-mini-section"><b>❤ Favourites:</b> <span style="color:var(--muted,#888);">None yet</span></div>`;
+  }
+  const chips = favs.map(id => `<span class="cust-chip">${custProductLabel(id)}</span>`).join('');
+  return `<div class="cust-mini-section"><b>❤ Favourites (${favs.length}):</b><div class="cust-chip-wrap">${chips}</div></div>`;
+}
+
+function custBagHtml(c){
+  const bag = Array.isArray(c.cart) ? c.cart : [];
+  if(bag.length === 0){
+    return `<div class="cust-mini-section"><b>🛍️ Bag:</b> <span style="color:var(--muted,#888);">Empty</span></div>`;
+  }
+  const chips = bag.map(item => `<span class="cust-chip">${custProductLabel(item.id)} × ${item.qty}</span>`).join('');
+  return `<div class="cust-mini-section"><b>🛍️ Bag (${bag.length}):</b><div class="cust-chip-wrap">${chips}</div></div>`;
+}
+
+async function deleteCustomerAccount(uid){
+  const c = allCustomers.find(x => x.uid === uid);
+  const label = c ? (c.name || c.phone || uid) : uid;
+  if(!confirm(`Delete the account for ${label} permanently?\n\nThis removes their saved name, address and details from your database. If this phone number logs in again on the website, it will be treated as a brand-new customer starting from scratch.\n\nThis cannot be undone.`)) return;
+  try {
+    const { db, doc, deleteDoc } = window.bbFirestore;
+    await deleteDoc(doc(db, 'customers', uid));
+    allCustomers = allCustomers.filter(x => x.uid !== uid);
+    renderCustomerList();
+    showToast('Customer account deleted');
+  } catch(err){
+    console.warn('Could not delete customer', err);
+    showToast('Could not delete — check your connection');
+  }
+}
+
+/* ---- Orders tab ---- */
+let ordersLoaded = false;
+let allOrders = [];
+
+async function loadOrders(isRefresh){
+  const listEl = document.getElementById('ordList');
+  const countEl = document.getElementById('ordCount');
+  countEl.textContent = 'Loading…';
+
+  try {
+    if(!window.bbFirebaseReady){
+      await new Promise(resolve => document.addEventListener('bbFirebaseReady', resolve, { once: true }));
+    }
+    const { db, collection, getDocs, doc, getDoc } = window.bbFirestore;
+    const snap = await getDocs(collection(db, 'orders'));
+
+    allOrders = [];
+    snap.forEach(docSnap => {
+      allOrders.push({ docId: docSnap.id, ...docSnap.data() });
+    });
+
+    allOrders.sort((a, b) => {
+      const aT = a.createdAt && a.createdAt.seconds ? a.createdAt.seconds : 0;
+      const bT = b.createdAt && b.createdAt.seconds ? b.createdAt.seconds : 0;
+      return bT - aT;
+    });
+
+    // Look up full customer details (name/email/address) for each order that has a phone
+    await Promise.all(allOrders.map(async (o) => {
+      if(!o.customerPhone) return;
+      try {
+        const custSnap = await getDoc(doc(db, 'customers', o.customerPhone));
+        if(custSnap.exists()) o.customerInfo = custSnap.data();
+      } catch(e){ /* ignore lookup failure, order still shows */ }
+    }));
+
+    ordersLoaded = true;
+    renderOrderList();
+    if(isRefresh) showToast('Orders refreshed');
+  } catch(err){
+    console.warn('Could not load orders', err);
+    countEl.textContent = 'Could not load orders.';
+    listEl.innerHTML = '<div class="empty-state">Could not reach the cloud database. Please check your connection and refresh.</div>';
+  }
+}
+
+function fmtOrdDate(ts){
+  if(!ts || !ts.seconds) return '—';
+  return new Date(ts.seconds * 1000).toLocaleString('en-IN', { dateStyle:'medium', timeStyle:'short' });
+}
+
+/* ---- Delivery Charges (admin sets amount right after confirming order) ---- */
+function renderDeliveryChargeBox(o){
+  const dlvStatus = o.deliveryChargeStatus || (o.deliveryCharge ? 'pending' : null);
+  const amount = o.deliveryCharge || 0;
+
+  if(!dlvStatus){
+    return `
+      <div class="dlv-box">
+        <div class="dlv-box-label">Delivery Charges</div>
+        <div class="dlv-set-row">
+          <input type="number" id="dlv-input-${o.docId}" placeholder="Enter amount ₹" min="0">
+          <button class="primary" style="flex:0 0 auto;padding:9px 16px;border-radius:7px;font-size:12.5px;font-weight:500;border:1.5px solid #F5D6D3;background:#FBEAE8;color:var(--rose);" onclick="setDeliveryCharge('${o.docId}')">Set Amount</button>
+        </div>
+      </div>
+    `;
+  }
+
+  if(dlvStatus === 'awaiting_verification'){
+    return `
+      <div class="dlv-box">
+        <div class="dlv-status-row">
+          <div>
+            <div class="dlv-box-label" style="margin-bottom:2px;">Delivery Charges</div>
+            <span class="dlv-amount-txt">₹${amount.toLocaleString('en-IN')}</span>
+            <span class="dlv-badge dlv-awaiting" style="margin-left:8px;">Awaiting Verification</span>
+          </div>
+          <button class="primary" style="padding:9px 16px;border-radius:7px;font-size:12.5px;font-weight:500;border:1.5px solid #F5D6D3;background:#FBEAE8;color:var(--rose);" onclick="verifyDeliveryPayment('${o.docId}')">Payment Confirm</button>
+        </div>
+      </div>
+    `;
+  }
+
+  if(dlvStatus === 'paid'){
+    return `
+      <div class="dlv-box">
+        <div class="dlv-status-row">
+          <div>
+            <div class="dlv-box-label" style="margin-bottom:2px;">Delivery Charges</div>
+            <span class="dlv-amount-txt">₹${amount.toLocaleString('en-IN')}</span>
+            <span class="dlv-badge dlv-paid" style="margin-left:8px;">Paid ✓ Verified</span>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  return `
+    <div class="dlv-box">
+      <div class="dlv-status-row">
+        <div>
+          <div class="dlv-box-label" style="margin-bottom:2px;">Delivery Charges</div>
+          <span class="dlv-amount-txt">₹${amount.toLocaleString('en-IN')}</span>
+          <span class="dlv-badge dlv-pending" style="margin-left:8px;">Pending — not yet paid</span>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+async function setDeliveryCharge(docId){
+  const input = document.getElementById(`dlv-input-${docId}`);
+  const amount = parseFloat(input ? input.value : '');
+  if(!amount || amount <= 0){ showToast('Please enter a valid delivery charge amount'); return; }
+
+  try {
+    const { db, doc, setDoc } = window.bbFirestore;
+    await setDoc(doc(db, 'orders', docId), { deliveryCharge: amount, deliveryChargeStatus: 'pending' }, { merge: true });
+    const o = allOrders.find(x => x.docId === docId);
+    if(o){ o.deliveryCharge = amount; o.deliveryChargeStatus = 'pending'; }
+    renderOrderList();
+    showToast('Delivery charge set — customer can now pay it');
+  } catch(err){
+    console.warn('Could not set delivery charge', err);
+    showToast('Could not update — check your connection');
+  }
+}
+
+async function verifyDeliveryPayment(docId){
+  try {
+    const { db, doc, setDoc } = window.bbFirestore;
+    await setDoc(doc(db, 'orders', docId), { deliveryChargeStatus: 'paid' }, { merge: true });
+    const o = allOrders.find(x => x.docId === docId);
+    if(o) o.deliveryChargeStatus = 'paid';
+    renderOrderList();
+    showToast('Delivery payment verified ✓');
+  } catch(err){
+    console.warn('Could not verify delivery payment', err);
+    showToast('Could not update — check your connection');
+  }
+}
+
+function renderOrderList(){
+  const listEl = document.getElementById('ordList');
+  const countEl = document.getElementById('ordCount');
+  const visible = allOrders.filter(o => !o.adminHidden);
+
+  countEl.textContent = `${visible.length} order${visible.length === 1 ? '' : 's'}`;
+
+  if(visible.length === 0){
+    listEl.innerHTML = '<div class="empty-state">No orders yet. They will show up here as soon as a customer pays via UPI on the website.</div>';
+    return;
+  }
+
+  listEl.innerHTML = visible.map(o => {
+    const items = o.items || [];
+    const itemsHtml = items.length
+      ? items.map(i => `<div class="ord-item-row"><span>${i.name} × ${i.qty}</span><span>₹${(i.price * i.qty).toLocaleString('en-IN')}</span></div>`).join('')
+      : '<div class="ord-item-row"><span>—</span></div>';
+
+    const ci = o.customerInfo || null;
+    const custHtml = ci
+      ? `<div class="cust-grid">
+           <div><b>Name:</b> ${ci.name || '—'}</div>
+           <div><b>Phone:</b> ${o.customerPhone || '—'}</div>
+           <div><b>Email:</b> ${ci.email || '—'}</div>
+           <div><b>City:</b> ${ci.city || '—'}</div>
+           <div><b>Pincode:</b> ${ci.pincode || '—'}</div>
+           <div style="grid-column:1/-1;"><b>Address:</b> ${ci.address || '—'}</div>
+         </div>`
+      : `<div class="cust-grid"><div><b>Phone:</b> ${o.customerPhone || 'Guest — not logged in'}</div></div>`;
+
+    const status = o.status || 'pending_verification';
+
+    return `
+    <div class="cust-card">
+      <div class="cust-card-top">
+        <div>
+          <div class="cust-name">${o.orderId || o.docId}</div>
+        </div>
+        <span class="ord-badge ${status}">${status.replace('_',' ')}</span>
+      </div>
+      <div class="ord-amount">₹${(o.amount || 0).toLocaleString('en-IN')}</div>
+
+      <div class="ord-section-label">Products</div>
+      ${itemsHtml}
+
+      <div class="ord-section-label">Customer</div>
+      ${custHtml}
+
+      <div class="cust-meta">Placed: ${fmtOrdDate(o.createdAt)}</div>
+      ${(status === 'paid' || status === 'shipped' || status === 'delivered') ? renderDeliveryChargeBox(o) : ''}
+      ${status === 'paid' ? `
+        <div class="ord-eta-row">
+          <input type="date" id="eta-${o.docId}" value="${o.estimatedDelivery || ''}">
+          <button class="primary" onclick="markOrderShipped('${o.docId}')">Mark as Shipped</button>
+        </div>
+      ` : ''}
+      ${status === 'shipped' ? `
+        ${o.estimatedDelivery ? `<div class="cust-meta">Expected delivery: ${new Date(o.estimatedDelivery).toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'})}</div>` : ''}
+        <div class="ord-actions"><button class="primary" onclick="markOrderDelivered('${o.docId}')">Mark as Delivered</button></div>
+      ` : ''}
+      ${status === 'delivered' || status === 'rejected' ? `
+        <div class="ord-actions">
+          <button onclick="hideOrderFromAdmin('${o.docId}')">Remove from Admin only</button>
+          <button class="danger" onclick="deleteOrderBoth('${o.docId}')">🗑️ Delete Permanently (Both)</button>
+        </div>
+      ` : ''}
+      <div class="ord-actions">
+        ${status !== 'paid' && status !== 'shipped' && status !== 'delivered' ? `<button class="primary" onclick="markOrderPaid('${o.docId}')">Mark as Paid</button>` : ''}
+        ${status !== 'rejected' && status !== 'delivered' ? `<button class="danger" onclick="rejectOrder('${o.docId}')">Reject</button>` : ''}
+      </div>
+    </div>
+  `;
+  }).join('');
+}
+
+async function hideOrderFromAdmin(docId){
+  const o = allOrders.find(x => x.docId === docId);
+  const label = o ? (o.orderId || docId) : docId;
+  if(!confirm(`Remove order ${label} from your Admin panel only?\n\nThe customer will still see it in their "My Orders" history — this just cleans up your view.`)) return;
+  try {
+    const { db, doc, setDoc } = window.bbFirestore;
+    await setDoc(doc(db, 'orders', docId), { adminHidden: true }, { merge: true });
+    if(o) o.adminHidden = true;
+    renderOrderList();
+    showToast('Removed from Admin view (customer still sees it)');
+  } catch(err){
+    console.warn('Could not update order', err);
+    showToast('Could not update — check your connection');
+  }
+}
+
+async function deleteOrderBoth(docId){
+  const o = allOrders.find(x => x.docId === docId);
+  const label = o ? (o.orderId || docId) : docId;
+  if(!confirm(`Delete order ${label} permanently for BOTH Admin and the customer's "My Orders"?\n\nThis cannot be undone.`)) return;
+  try {
+    const { db, doc, deleteDoc } = window.bbFirestore;
+    await deleteDoc(doc(db, 'orders', docId));
+    allOrders = allOrders.filter(x => x.docId !== docId);
+    renderOrderList();
+    showToast('Order deleted for both');
+  } catch(err){
+    console.warn('Could not delete order', err);
+    showToast('Could not delete — check your connection');
+  }
+}
+
+async function markOrderShipped(docId){
+  try {
+    const etaInput = document.getElementById(`eta-${docId}`);
+    const eta = etaInput ? etaInput.value : '';
+    const { db, doc, setDoc } = window.bbFirestore;
+    await setDoc(doc(db, 'orders', docId), { status: 'shipped', estimatedDelivery: eta || null }, { merge: true });
+    const o = allOrders.find(x => x.docId === docId);
+    if(o){ o.status = 'shipped'; o.estimatedDelivery = eta || null; }
+    renderOrderList();
+    showToast('Order marked as shipped');
+  } catch(err){
+    console.warn('Could not update order', err);
+    showToast('Could not update — check your connection');
+  }
+}
+
+async function markOrderDelivered(docId){
+  try {
+    const { db, doc, setDoc } = window.bbFirestore;
+    await setDoc(doc(db, 'orders', docId), { status: 'delivered' }, { merge: true });
+    const o = allOrders.find(x => x.docId === docId);
+    if(o) o.status = 'delivered';
+    renderOrderList();
+    showToast('Order marked as delivered');
+  } catch(err){
+    console.warn('Could not update order', err);
+    showToast('Could not update — check your connection');
+  }
+}
+
+async function rejectOrder(docId){
+  if(!confirm('Reject this order? The customer will need to be contacted separately if they already paid.')) return;
+  try {
+    const { db, doc, setDoc } = window.bbFirestore;
+    await setDoc(doc(db, 'orders', docId), { status: 'rejected' }, { merge: true });
+    const o = allOrders.find(x => x.docId === docId);
+    if(o) o.status = 'rejected';
+    renderOrderList();
+    showToast('Order rejected');
+  } catch(err){
+    console.warn('Could not update order', err);
+    showToast('Could not update — check your connection');
+  }
+}
+
+async function markOrderPaid(docId){
+  try {
+    const { db, doc, setDoc } = window.bbFirestore;
+    await setDoc(doc(db, 'orders', docId), { status: 'paid' }, { merge: true });
+    const o = allOrders.find(x => x.docId === docId);
+    if(o) o.status = 'paid';
+    renderOrderList();
+    showToast('Order marked as paid');
+  } catch(err){
+    console.warn('Could not update order', err);
+    showToast('Could not update — check your connection');
+  }
+}
+</script>
+</body>
+</html>
